@@ -24,12 +24,10 @@ class BenchmarkConfig:
     Attributes:
         dataset: Import path for the dataset config in OpenCompass.
         download: Optional function to ensure the dataset is available (e.g. download from HF).
-        sample_count: Total number of samples in the dataset (used for small dataset detection).
     """
 
     dataset: str
     download: Optional[DownloadFunc] = None
-    sample_count: Optional[int] = None
 
 
 # Mapping from benchmark_name -> benchmark configuration.
@@ -37,11 +35,9 @@ BENCHMARK_CONFIG_DICT: Dict[str, BenchmarkConfig] = {
     # Math Reasoning Benchmarks
     "aime24": BenchmarkConfig(
         dataset="opencompass.configs.datasets.aime2024.aime2024_gen_17d799",
-        sample_count=30,  # AIME 2024 has 30 problems
     ),
     "aime25": BenchmarkConfig(
         dataset="opencompass.configs.datasets.aime2025.aime2025_cascade_eval_gen_5e9f4f",
-        sample_count=30,  # AIME 2025 has 30 problems
     ),
     "math": BenchmarkConfig(
         dataset="opencompass.configs.datasets.math.math_0shot_gen_393424",

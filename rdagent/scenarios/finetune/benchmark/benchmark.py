@@ -118,8 +118,7 @@ def run_benchmark(
     model_name: str,
     benchmark_name: str,
     gpu_count: int,
-    limit: Optional[int] = 100,
-    offset: int = 0,
+    test_range: Optional[str] = "[:100]",
     num_runs: int = 1,
     pass_k: Optional[List[int]] = None,
     max_error_samples: int = 10,
@@ -134,8 +133,8 @@ def run_benchmark(
         model_name: HuggingFace model name
         benchmark_name: Benchmark dataset name (e.g., "aime25", "gsm8k")
         gpu_count: GPU count for tensor_parallel_size (from scenario.device_info)
-        limit: Optional dataset size limit for testing
-        offset: Starting offset for dataset sampling (default: 0)
+        test_range: Python slice string for dataset sampling (e.g., "[:100]", "[-100:]").
+                    Negative indexing allows automatic adaptation to varying subset sizes.
         num_runs: Number of times to run each sample (default: 1)
         pass_k: Optional list of k values for pass@k evaluation (e.g., [1, 5, 10])
         max_error_samples: Maximum number of error samples to extract for feedback
@@ -209,8 +208,7 @@ def run_benchmark(
         "lora_path": lora_path_in_env,
         # Dataset configuration
         "dataset_imports": [dataset_imports],
-        "limit": limit or "",
-        "offset": offset,
+        "test_range": test_range,
         "num_runs": num_runs,
         "pass_k": pass_k,
         "work_dir": adapter_path_in_env,
@@ -235,8 +233,8 @@ def run_benchmark(
     logger.info(f"Base model: {model_name}, LoRA?: {model_is_lora}")
     logger.info(f"Workspace: {workspace_path}")
     logger.info(f"Benchmark work_dir: {benchmark_work_dir}")
-    if offset:
-        logger.info(f"Dataset range: [{offset}:{offset + (limit or 0)}]")
+    if test_range:
+        logger.info(f"Dataset range: {test_range}")
 
     # Environment variables
     env_vars = {
@@ -324,6 +322,20 @@ def run_benchmark(
         "accuracy_summary": accuracy_summary,
         "error_samples": error_samples,
     }
+
+
+def get_benchmark_ranges() -> tuple[str, str]:
+    """Get validation and test range strings for benchmark evaluation.
+
+    Uses negative indexing for test set to automatically adapt to varying
+    subset sizes in multi-subset benchmarks (e.g., FinanceIQ_ppl).
+
+    Returns:
+        Tuple of (validation_range, test_range):
+        - validation: "[:100]" (first 100 samples)
+        - test: "[-100:]" (last 100 samples, auto-adapts to subset size)
+    """
+    return "[:100]", "[-100:]"
 
 
 if __name__ == "__main__":

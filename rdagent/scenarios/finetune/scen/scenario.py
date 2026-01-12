@@ -9,7 +9,7 @@ from rdagent.core.utils import cache_with_pickle
 from rdagent.log import rdagent_logger as logger
 from rdagent.oai.llm_utils import APIBackend
 from rdagent.scenarios.data_science.scen import DataScienceScen
-from rdagent.scenarios.finetune.benchmark.benchmark import run_benchmark
+from rdagent.scenarios.finetune.benchmark import get_benchmark_ranges, run_benchmark
 from rdagent.scenarios.finetune.datasets import prepare_all
 from rdagent.scenarios.finetune.experiment.workspace import FTWorkspace
 from rdagent.scenarios.finetune.scen.llama_factory_manager import LLaMAFactory_manager
@@ -90,26 +90,26 @@ class LLMFinetuneScen(DataScienceScen):
             ws.workspace_path / "models" / model_name,
             dirs_exist_ok=True,
         )
-        # Validation set [0:100] - visible to agent
+        val_range, test_range = get_benchmark_ranges()
+
+        # Validation set - visible to agent
         validation_result = run_benchmark(
             workspace_path=str(ws.workspace_path),
             model_path=ws.workspace_path / "models" / model_name,
             model_name=model_name,
             benchmark_name=benchmark_name,
             gpu_count=self.gpu_count,
-            limit=100,
-            offset=0,
+            test_range=val_range,
             result_subdir="validation",
         )
-        # Test set [100:200] - NOT visible to agent, frontend only
+        # Test set - NOT visible to agent, frontend only
         test_result = run_benchmark(
             workspace_path=str(ws.workspace_path),
             model_path=ws.workspace_path / "models" / model_name,
             model_name=model_name,
             benchmark_name=benchmark_name,
             gpu_count=self.gpu_count,
-            limit=100,
-            offset=100,
+            test_range=test_range,
             result_subdir="test",
         )
         return {

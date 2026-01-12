@@ -20,8 +20,7 @@ from rdagent.components.coder.finetune.unified_validator import LLMConfigValidat
 from rdagent.core.evolving_framework import QueriedKnowledge
 from rdagent.core.experiment import FBWorkspace
 from rdagent.log import rdagent_logger as logger
-from rdagent.scenarios.finetune.benchmark import run_benchmark
-from rdagent.scenarios.finetune.benchmark.data.adaptor import BENCHMARK_CONFIG_DICT
+from rdagent.scenarios.finetune.benchmark import get_benchmark_ranges, run_benchmark
 from rdagent.utils.agent.tpl import T
 from rdagent.utils.agent.workflow import build_cls_from_json_with_retry
 
@@ -167,38 +166,29 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
         # Extract loss history from training output
         loss_history = extract_loss_history(output_path)
 
-        # Get benchmark config to check sample count for small datasets
-        benchmark_cfg = BENCHMARK_CONFIG_DICT.get(target_task.benchmark)
-        sample_count = benchmark_cfg.sample_count if benchmark_cfg else None
+        val_range, test_range = get_benchmark_ranges()
 
-        # Validation set: [:100] - used for SOTA judgment, visible to agent
+        # Validation set - used for SOTA judgment, visible to agent
         validation_result = run_benchmark(
             workspace_path=str(workspace_path),
             model_path=output_path,
             model_name=target_task.base_model,
             benchmark_name=target_task.benchmark,
             gpu_count=self.scen.gpu_count,
-            limit=100,
-            offset=0,
+            test_range=val_range,
             result_subdir="validation",
         )
 
-        # Test set: [100:200] - only for frontend display, not visible to agent
-        # For small datasets (< 100 samples), test = validation
-        if sample_count is not None and sample_count < 100:
-            test_result = validation_result
-            logger.info(f"Small dataset detected ({sample_count} samples), using validation as test")
-        else:
-            test_result = run_benchmark(
-                workspace_path=str(workspace_path),
-                model_path=output_path,
-                model_name=target_task.base_model,
-                benchmark_name=target_task.benchmark,
-                gpu_count=self.scen.gpu_count,
-                limit=100,
-                offset=100,
-                result_subdir="test",
-            )
+        # Test set - only for frontend display, not visible to agent
+        test_result = run_benchmark(
+            workspace_path=str(workspace_path),
+            model_path=output_path,
+            model_name=target_task.base_model,
+            benchmark_name=target_task.benchmark,
+            gpu_count=self.scen.gpu_count,
+            test_range=test_range,
+            result_subdir="test",
+        )
 
         # Build comprehensive result with training metrics and benchmark results
         # Note: "benchmark" is for agent (SOTA judgment), "benchmark_test" is for frontend only
