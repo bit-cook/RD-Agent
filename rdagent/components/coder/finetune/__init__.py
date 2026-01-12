@@ -329,6 +329,7 @@ class LLMFinetuneEvolvingStrategy(MultiProcessEvolvingStrategy):
             workspace_path=FT_PATHS.workspace,
             deepspeed_path=FT_PATHS.deepspeed,
             data_stats=data_stats,
+            has_think_token=self.scen.model_info.get("has_think_token", False),
         )
 
         # Call LLM to generate config (multi-turn)

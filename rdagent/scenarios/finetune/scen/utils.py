@@ -555,6 +555,25 @@ class FinetuneDatasetDescriptor:
                 except Exception as e:
                     logger.warning(f"Failed to read {readme}: {e}")
 
+        # Check if tokenizer supports <think> token for CoT training
+        info["has_think_token"] = False
+        tokenizer_path = model_path / "tokenizer.json"
+        if tokenizer_path.exists():
+            try:
+                with open(tokenizer_path, encoding="utf-8") as f:
+                    tokenizer_config = json.load(f)
+                    # Check in vocabulary
+                    vocab = tokenizer_config.get("model", {}).get("vocab", {})
+                    # Check in added_tokens
+                    added_tokens = tokenizer_config.get("added_tokens", [])
+                    added_token_contents = {t.get("content") for t in added_tokens if isinstance(t, dict)}
+
+                    if "<think>" in vocab or "<think>" in added_token_contents:
+                        info["has_think_token"] = True
+                        logger.info(f"Model {model_name} has native <think> token support")
+            except Exception as e:
+                logger.warning(f"Failed to check tokenizer for <think> token: {e}")
+
         return info
 
     def describe_file_json(self, data_file: Path, max_samples: int = 3) -> FinetuneFileDescription:

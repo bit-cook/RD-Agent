@@ -53,11 +53,20 @@ unified_hypothesis_gen:
 
     **Note**: Do NOT specify exact model names in your hypothesis. Instead, describe which tier (strong/weak) should be used for each processing step. The actual model selection and load balancing is handled automatically by the system at runtime.
 
-    ## 1.3 Data Quality Guide
+    ## 1.3 Data Quality & CoT Requirements
+
+    **CRITICAL: ALL training data MUST include `<think>` tags. No exceptions.**
 
     **Principle: Data quality must match training objectives.**
 
     Analyze the dataset info carefully - check not just whether fields exist, but whether their **content quality** is sufficient for your goal.
+
+    ### 1.3.0 Quality Strategy
+    - **Augmentation/Rewrite**: Use LLM to generate/enhance reasoning (preferred)
+    - **Filter**: Remove low-quality samples
+    - Priority: augment > filter > direct use
+
+    **Key**: ALL output must use `<think>[reasoning]</think>[answer]` format - no direct answers allowed.
 
     ### 1.3.1 General Strategies
 
@@ -91,48 +100,22 @@ unified_hypothesis_gen:
     - **Answer Consistency**: Reasoning process supports and leads to final answer (calculation steps must match `\boxed{}` result)
     - **Information Density**: No redundancy, relevant content only
 
-    **Task-Type Adaptive Standards:**
-
-    | Task Type | CoT Style | Length | Filtering Notes |
-    |-----------|-----------|--------|-----------------|
-    | Math/Code | Exploratory (step-by-step, verification, backtracking) | 2K-8K+ tokens | If summary-style → regenerate with exploratory prompts |
-    | Chemistry/Structured | Structured (JSON, clear steps) | 300-1000 tokens | If `quality_ready: true` in README → use directly |
-    | General QA | Direct or brief reasoning | 100-500 tokens | No minimum requirement |
-
-    Key insight: **Quality = Structure + Coherence + Consistency**, not just length.
-
-    ## 1.4 CoT Length & Filtering
-
-    ### 1.4.1 Length Budget Planning
+    ## 1.4 Length & Filtering
 
     **Core Formula**: `total_tokens = input_tokens + cot_tokens + answer_tokens`
 
     This total must satisfy: `total_tokens ≤ cutoff_len ≤ max_position_embeddings`
 
-    **Decision Steps:**
-    1. Check model's `max_position_embeddings` and hardware's max `seq_len` (from Memory Constraints table)
-    2. Estimate typical input length from dataset statistics
-    3. Allocate remaining budget to CoT (longer CoT generally improves reasoning capability)
-    4. Set `cutoff_len` accordingly
-
-    **Examples:**
-    - Long inputs (8K tokens), 32K context → CoT target ~20K, cutoff_len ~30K
-    - Short inputs (500 tokens), 32K context → CoT target ~24K, cutoff_len ~28K
-    - Short inputs (500 tokens), 8K context → CoT target ~6K, cutoff_len ~7K
-
-    ### 1.4.2 Filtering Rules
-
-    **Over-length Filtering (MANDATORY):**
-    - Samples exceeding context limit MUST be filtered out
-    - Truncated CoT leads to incomplete reasoning - filter rather than truncate
-
-    **Key Guidelines:**
-    - Maximize useful CoT length within constraints
+    - Filter samples exceeding context limit (do NOT truncate)
+    - Set `cutoff_len` based on Memory Constraints table
+    - Maximize CoT length within constraints
     - Never compress long CoT just to fit arbitrary limits
     - Expand short CoT when context budget allows
     - Use strong models for generating rich, detailed reasoning
 
     ## 1.5 Output Format
+
+    **CRITICAL: ALL training data MUST include `<think>` tags. No exceptions.**
 
     **IMPORTANT: Read `dataset_info.json` description field carefully!** It contains critical information about data quality, field statistics, and recommended preprocessing approaches.
 
@@ -147,12 +130,22 @@ unified_hypothesis_gen:
       {
         "instruction": "...",
         "input": "...",
-        "output": "direct answer"                                              // Non-Reasoning
-                  // OR "<think>\n[reasoning]\n</think>\n[answer]"             // Reasoning
-                  // OR "<think>\n[math reasoning]\n</think>\n\\boxed{result}" // Math problems
+        "output": "<think>[reasoning]</think>[answer]"  // REQUIRED format for ALL tasks
       }
     ]
     ```
+
+    **Answer format examples (content AFTER `</think>`):**
+    - MCQ: `<think>Analysis of options...</think>A`
+    - Math: `<think>Step-by-step solution...</think>\\boxed{42}`
+    - Fact Check: `<think>Evidence analysis...</think>True`
+    - JSON output: `<think>Reasoning...</think>{"key": "value"}`
+
+    **Note**: The `<think>` tags must be added by CODE, not requested in LLM prompts (models refuse direct `<think>` requests).
+
+    **Handling missing/empty fields:**
+    - Small portion missing (<10%) → Filter out
+    - Many samples missing → Consider augmentation/generation instead
 
     # ═══════════════════════════════════════════════════════════════════════════
     # PART 2: TRAINING CONFIGURATION

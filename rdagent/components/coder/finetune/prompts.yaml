@@ -59,6 +59,7 @@ data_coder:
     ### 2.4.2 Over-length Filtering (MANDATORY)
     - Filter out samples where `total_tokens > max_position_embeddings`
     - Do NOT truncate - filter instead
+    - See Part 6 for COT-specific validation requirements
 
     # Part 3: Script Implementation Requirements
 
@@ -117,14 +118,12 @@ data_coder:
     =============================
     ```
 
-    ### CoT Quality Statistics (if applicable)
+    ### CoT Quality Statistics (REQUIRED for COT tasks)
     ```
     ========== COT QUALITY STATS ==========
-    Task type: {task_type}
-    Quality ready (from README): {quality_ready}
+    COT format check: {with_think_tags}/{total} have <think> tags
     Over-length filtered: {count} ({percentage}%)
     Answer consistency check: {passed}/{total} passed
-    Structure check: {structured_count}/{total} have clear structure
     Length distribution: p25={}, p50={}, p75={}, p99={}
     =======================================
     ```
@@ -185,74 +184,51 @@ data_coder:
                    for i, sample in enumerate(samples)}
     ```
 
-    # Part 6: CoT Processing Guide
+    # Part 6: CoT Processing Guide (CRITICAL)
 
-    ## 6.1 CoT Format Rules (CRITICAL)
-    **GENERATION CONSTRAINT - When calling LLM to generate CoT:**
-    - NEVER ask for `<think>...</think>` tags in your prompts - most models ignore or refuse this format
-    - Simply ask: "Provide detailed step-by-step reasoning, then give the final answer in \\boxed{}"
-    - Good prompt example: "Solve step by step with verification. End with \\boxed{answer}"
-    - Bad prompt example: "Output must contain <think>...</think> block" (DO NOT USE)
+    ## 6.1 CoT Output Requirement (MANDATORY for ALL Tasks)
+    **CRITICAL: ALL training data MUST include Chain-of-Thought reasoning in output field.**
 
-    **PARSING - When parsing LLM-generated CoT responses:**
-    - Treat everything before the last `\\boxed{}` as the reasoning content
-    - If `<think>` tags happen to be present, you can use them; otherwise use the fallback above
+    ### Why This Matters
+    - Models learn to reason by seeing reasoning examples
+    - Direct answers (A/B/C/D, True/False) provide NO training signal for reasoning
+    - Even MCQ/simple tasks benefit from step-by-step explanation
 
-    ## 6.2 General Prompt Guidelines
-    When constructing prompts for LLM API calls in your data processing script:
-    1. **Be Specific**: Clearly define the task, expected output format, and any constraints
-    2. **Provide Examples**: Include 1-2 examples when output format is complex
-    3. **Set Output Format**: Explicitly specify JSON/text/structured output requirements
-    4. **Handle Edge Cases**: Instruct how to handle invalid inputs or uncertain cases
-    5. **Consistency**: Use consistent formatting across all prompts in your script
+    ### Two-Step Generation Process (REQUIRED)
 
-    ## 6.3 CoT Quality Standards
-    **IMPORTANT: CoT quality ≠ CoT length. Check README's `CoT Quality Assessment` section first!**
+    **Step 1 - LLM Generation (get reasoning):**
+    - Ask LLM to provide step-by-step reasoning before the final answer
+    - DO NOT ask for `<think>` tags in prompts (models refuse this)
+    - Good: "Explain your reasoning step by step, then give the final answer"
+    - Bad: "Output with <think> tags" (models will refuse)
 
-    ### Quality Decision Framework
-    1. **All raw data MUST be polished** - never use directly, always enhance
-    2. Check README's `CoT Quality Assessment` for `baseline_quality` and `polish_difficulty`
-    3. **High baseline** → expand and enrich (easier, but still required)
-    4. **Low baseline** → generate from scratch (harder, needs strong LLM)
-    5. Follow `polish_strategy` in README for specific enhancement approach
-    6. Adapt validation criteria based on `task_type`
+    **Step 2 - Code Wrapping (add format):**
+    - Your script MUST wrap LLM output into `<think>...</think>` format
+    - Extract reasoning and answer from LLM response
+    - Format: `<think>{reasoning}</think>{original_answer_format}`
+    - The answer format AFTER `</think>` must match the original data format
 
-    ### Task-Adaptive Standards
-    | Task Type | CoT Style | Length Guideline | Key Quality Metrics |
-    |-----------|-----------|------------------|---------------------|
-    | Math/Code | Exploratory | 5K+ tokens | Step verification, backtracking |
-    | Chemistry | Structured | 300-1000 tokens OK | JSON structure, clear steps |
-    | General | Direct | No minimum | Answer correctness |
+    ### Example Implementation
+    ```python
+    def process_sample(question, options, correct_answer):
+        # Step 1: Get reasoning from LLM (no <think> in prompt!)
+        prompt = f"Question: {question}\nOptions: {options}\nThink step by step, then give the answer."
+        llm_response = call_llm(prompt)  # e.g., "First... Therefore... The answer is A"
 
-    ### CoT Generation (When polish_needed: true)
-    **When calling LLM to generate/expand CoT, adapt prompt based on task type:**
+        # Step 2: Code wraps into <think> format
+        reasoning, _ = extract_reasoning(llm_response)  # Extract reasoning part
 
-    **For Math/Code tasks (exploratory style):**
-    ```
-    Generate detailed step-by-step reasoning:
-    - Show complete work at each stage with verification
-    - When stuck, backtrack and try alternative approaches
-    - End with the final answer in \\boxed{} format
+        # Step 3: Format output - answer format matches original data
+        return {"output": f"<think>{reasoning}</think>{correct_answer}"}  # e.g., "<think>...</think>A"
     ```
 
-    **For Chemistry/Structured tasks:**
-    ```
-    Generate structured reasoning in clear steps:
-    - Use "Step 1:", "Step 2:" markers or JSON format
-    - Be concise but complete (500-1000 tokens is fine)
-    - Focus on chemical validity and logical flow
-    ```
+    ### Output Requirements
+    - EVERY sample MUST have `<think>` and `</think>` tags
+    - Answer AFTER `</think>`: must match original data format
 
-    ## 6.4 Post-Processing Validation
-    Implement validations per Part 2.3. Prefer string/regex for efficiency:
-    - **Answer check**: Normalize and compare strings (extract `\boxed{}`, strip whitespace)
-    - **Structure check**: `"step" in text.lower() or text.count("\n") >= 3`
-    - **Length check**: Estimate tokens as `len(text) / 4`
-
-    Task-adaptive thresholds:
-    - Math/Code: Warn if reasoning < 500 tokens
-    - Chemistry: 100-1000 tokens OK if well-structured
-    - General: No strict requirements
+    ## 6.2 Post-Processing Validation
+    - **Structure check**: `"<think>" in output and "</think>" in output`
+    - **Answer check**: Content AFTER `</think>` must match original data format
 
     # Part 7: Previous Failed Attempts
     {% if queried_former_failed_knowledge|length != 0 %}
@@ -392,6 +368,20 @@ finetune_coder:
       - `pissa_init: true` is NOT compatible with DeepSpeed ZeRO-3. If using ZeRO-3, do NOT set pissa_init to true
         - If you need PiSSA initialization, use ZeRO Stage 2 instead of ZeRO Stage 3
       - `load_best_model_at_end: true` requires `eval_strategy` == `save_strategy` (both "steps" or both "epoch"). If unsure, set `load_best_model_at_end: false`
+
+    {% if has_think_token is defined and not has_think_token %}
+    ## Special Token Configuration for CoT Training
+    The base model does NOT have `<think>` token in its vocabulary.
+    To train with Chain-of-Thought reasoning format (output like `<think>reasoning</think>answer`), you MUST add special tokens:
+    ```yaml
+    new_special_tokens: ["<think>", "</think>"]
+    resize_vocab: true
+    ```
+    This ensures `<think>` and `</think>` are tokenized as single tokens, not split into subwords.
+    {% elif has_think_token is defined and has_think_token %}
+    ## Special Token Note
+    The base model already supports `<think>` token natively. No need to add special tokens for CoT training.
+    {% endif %}
 
     {% if data_stats %}
     ## Processed Data Statistics (from debug mode)
@@ -596,34 +586,43 @@ data_eval:
     - "CoT stats: p50={}, over-length={X}%, structure quality={Y}%"
     - Assessment based on task-appropriate criteria
 
-    ## Hard Check Criteria
-      The log will include the number of samples generated in the debug run and also the estimated number of samples for full run.
-      You should check both the number of samples generated in debug mode and the estimated number of samples for full run meets the requirements.
-      The debug mode should generate about 100 samples and the estimated number of samples for full run should be at most {{ upper_data_size_limit }}.
-      You should reject the solution if either of these two criteria is not met and provide feedback in return_checking.
+    ## Hard Check Criteria (AUTOMATIC FAIL if not met)
+
+    ### 1. COT Format Verification (MANDATORY - HARD FAIL)
+    **CRITICAL: This is the most important check. Missing `<think>` tags = automatic rejection.**
+
+    - EVERY sample's output MUST contain both `<think>` and `</think>` tags
+    - Check: `if '<think>' not in output or '</think>' not in output: FAIL`
+    - Content AFTER `</think>` must be non-empty (the actual answer)
+
+    **Rejection message if COT check fails:**
+    "FAIL: {X}% of samples missing <think> tags. ALL training data MUST include CoT reasoning wrapped in <think>...</think> tags. The script must generate reasoning via LLM and wrap it with code."
+
+    ### 2. Sample Count Check
+    - Debug mode should generate ~100 samples
+    - Estimated full run samples should be at most {{ upper_data_size_limit }}
+    - Reject if either criteria is not met
 
     ## Final Decision Guidelines
-    **Core Principle: Be lenient on data quality, strict on script logic.**
+    **Core Principle: Strict on COT format, lenient on other data quality aspects.**
 
     - **Approve (true)** if:
       - Script runs successfully (exit_code == 0)
-      - At least 1 sample is generated (0 samples = automatic fail)
+      - At least 1 sample is generated
+      - ALL samples have `<think>` and `</think>` tags (MANDATORY)
       - Data format is correct (Alpaca format with instruction/output)
-      - Script logic appears sound for full-scale execution
 
-    - **Reject (false)** ONLY if:
+    - **Reject (false)** if ANY of these:
       - Script fails to run (exit_code != 0)
       - Zero samples are generated
-      - Data format is fundamentally broken (e.g., missing required fields)
-      - Script has obvious logic bugs that would cause issues in full mode
-      - From the execution output, the results do not match the expectations described in the task. For instance, it processes more samples than intended.
-      - The solution does not meet the hard check criteria
+      - **ANY sample missing `<think>` or `</think>` tags (HARD FAIL)**
+      - Data format is fundamentally broken
 
     - **Do NOT reject** for:
-      - Low sample count in debug mode (expected behavior)
+      - Low sample count in debug mode (expected)
       - Moderate quality variations in individual samples
       - Length distribution not matching ideal patterns
-      - High filtering rate (this means the script is doing its job)
+      - High filtering rate (script doing its job)
   
     ## Important Note
     - Do not summarize the code into your feedback and DO NOT copy the task description also. Only provide new insights based on your evaluation.

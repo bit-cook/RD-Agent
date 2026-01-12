@@ -74,6 +74,7 @@ template: |-
             ),
     {% if enable_thinking %}
             chat_template_kwargs=dict(enable_thinking=True),
+            pred_postprocessor=dict(type='extract-non-reasoning-content'),
     {% endif %}
             run_cfg=dict(
                 num_gpus={{ tensor_parallel_size }},
