@@ -84,16 +84,28 @@ def render_loop(loop: Loop, show_types: list[str]) -> None:
                     if result is not None:
                         _, benchmark_score, _ = result
 
-    # 3. Build title string (only show existing stages)
+    # 3. Get feedback decision for benchmark score coloring
+    feedback_decision = None
+    for event in loop.feedback:
+        if event.type == "feedback" and "Feedback:" in event.title:
+            feedback_decision = event.success
+            break
+
+    # 4. Build title string (only show existing stages)
     parts = []
     if coding_str:
         parts.append(coding_str)
     if runner_success is not None:
         runner_str = "🏃✓" if runner_success else "🏃✗"
         parts.append(runner_str)
-    # Show benchmark score if available (regardless of eval result)
+    # Show benchmark score with emoji based on feedback decision
     if benchmark_score is not None:
-        parts.append(f"📊{benchmark_score:.2f}")
+        if feedback_decision is True:
+            parts.append(f"✅📊{benchmark_score:.2f}")
+        elif feedback_decision is False:
+            parts.append(f"❌📊{benchmark_score:.2f}")
+        else:
+            parts.append(f"📊{benchmark_score:.2f}")
 
     result_str = " ".join(parts) if parts else ""
 

@@ -23,19 +23,28 @@ def get_loop_dirs(task_path: Path) -> list[Path]:
     return sorted(loops, key=lambda d: int(d.name.split("_")[1]))
 
 
-def extract_benchmark_score(loop_path: Path) -> tuple[str, float, bool] | None:
+def extract_benchmark_score(loop_path: Path, split: str = "") -> tuple[str, float, bool] | None:
     """Extract benchmark score, metric name, and direction from loop directory.
+
+    Args:
+        loop_path: Path to loop directory
+        split: Filter by split type ("validation", "test", or "" for any)
 
     Returns:
         (metric_name, score, higher_is_better) or None
         - metric_name includes "(average)" suffix if multiple datasets are averaged
         - higher_is_better: True if higher values are better
     """
-    for pkl_file in loop_path.rglob("**/benchmark_result/**/*.pkl"):
+    for pkl_file in loop_path.rglob("**/benchmark_result*/**/*.pkl"):
         try:
             with open(pkl_file, "rb") as f:
                 content = pickle.load(f)
             if isinstance(content, dict):
+                # Check split filter
+                content_split = content.get("split", "")
+                if split and content_split != split:
+                    continue
+
                 benchmark_name = content.get("benchmark_name", "")
                 accuracy_summary = content.get("accuracy_summary", {})
                 if isinstance(accuracy_summary, dict) and accuracy_summary:
@@ -45,6 +54,19 @@ def extract_benchmark_score(loop_path: Path) -> tuple[str, float, bool] | None:
         except Exception:
             pass
     return None
+
+
+def extract_benchmark_scores(loop_path: Path) -> dict[str, tuple[str, float, bool] | None]:
+    """Extract both validation and test benchmark scores from loop directory.
+
+    Returns:
+        Dict with keys "validation" and "test", each containing
+        (metric_name, score, higher_is_better) or None
+    """
+    return {
+        "validation": extract_benchmark_score(loop_path, split="validation"),
+        "test": extract_benchmark_score(loop_path, split="test"),
+    }
 
 
 def extract_baseline_score(task_path: Path) -> tuple[str, float] | None:
@@ -75,51 +97,77 @@ def extract_baseline_score(task_path: Path) -> tuple[str, float] | None:
     return None
 
 
-def get_loop_status(task_path: Path, loop_id: int) -> tuple[str, float | None, str | None]:
+def get_loop_status(
+    task_path: Path, loop_id: int
+) -> tuple[str, float | None, float | None, str | None]:
     """
-    Get loop status, score, and metric name with direction arrow
-    Returns: (status_str, score_or_none, metric_display_or_none)
+    Get loop status, validation score, test score, and metric name with direction arrow
+    Returns: (status_str, val_score_or_none, test_score_or_none, metric_display_or_none)
     Status: 'C'=Coding, 'R'=Running, 'X'=Failed, score_str=Success
     metric_display: metric name with direction arrow (e.g., "accuracy ↑")
     """
     loop_path = task_path / f"Loop_{loop_id}"
     if not loop_path.exists():
-        return "-", None, None
+        return "-", None, None, None
 
-    # Check for benchmark result first (highest priority - means completed)
-    result = extract_benchmark_score(loop_path)
-    if result is not None:
-        metric_name, score, higher_is_better = result
+    # Check for benchmark results first (highest priority - means completed)
+    scores = extract_benchmark_scores(loop_path)
+    val_result = scores.get("validation")
+    test_result = scores.get("test")
+
+    # Fallback to old format (no split) if no validation/test found
+    if val_result is None and test_result is None:
+        legacy_result = extract_benchmark_score(loop_path, split="")
+        if legacy_result is not None:
+            val_result = legacy_result  # Treat legacy as validation
+
+    # Get feedback decision (used for both score coloring and fallback status)
+    feedback_decision = None
+    feedback_files = list(loop_path.rglob("**/feedback/**/*.pkl"))
+    for f in feedback_files:
+        try:
+            with open(f, "rb") as fp:
+                content = pickle.load(fp)
+            decision = getattr(content, "decision", None)
+            if decision is not None:
+                feedback_decision = decision
+                break
+        except Exception:
+            pass
+
+    if val_result is not None:
+        metric_name, val_score, higher_is_better = val_result
+        test_score = test_result[1] if test_result else None
         arrow = "↑" if higher_is_better else "↓"
         metric_display = f"{metric_name} {arrow}"
-        return f"{score:.1f}", score, metric_display
+        # Format: "val/test" or just "val" if no test
+        if test_score is not None:
+            status_str = f"{val_score:.1f}/{test_score:.1f}"
+        else:
+            status_str = f"{val_score:.1f}"
+        # Add feedback marker for coloring
+        if feedback_decision is True:
+            status_str += "+"
+        elif feedback_decision is False:
+            status_str += "-"
+        return status_str, val_score, test_score, metric_display
 
-    # Check feedback stage
-    feedback_files = list(loop_path.rglob("**/feedback/**/*.pkl"))
-    if feedback_files:
-        # Has feedback, check if accepted/rejected
-        for f in feedback_files:
-            try:
-                with open(f, "rb") as fp:
-                    content = pickle.load(fp)
-                decision = getattr(content, "decision", None)
-                if decision is not None:
-                    return ("OK" if decision else "X"), None, None
-            except Exception:
-                pass
+    # Check feedback stage (no benchmark result, use feedback decision directly)
+    if feedback_decision is not None:
+        return ("OK" if feedback_decision else "X"), None, None, None
 
     # Check running stage
     running_files = list(loop_path.rglob("**/running/**/*.pkl"))
     if running_files:
-        return "R", None, None
+        return "R", None, None, None
 
     # Check coding stage
     coding_files = list(loop_path.rglob("**/coding/**/*.pkl"))
     if coding_files:
-        return "C", None, None
+        return "C", None, None, None
 
     # Has directory but no recognized files
-    return "?", None, None
+    return "?", None, None, None
 
 
 def get_max_loops(job_path: Path) -> int:
@@ -133,7 +181,11 @@ def get_max_loops(job_path: Path) -> int:
 
 
 def get_job_summary_df(job_path: Path) -> pd.DataFrame:
-    """Generate summary DataFrame for all tasks in job"""
+    """Generate summary DataFrame for all tasks in job
+
+    Each loop column shows "val/test" format when both scores are available.
+    Best columns show the best validation and test scores separately.
+    """
     if not job_path.exists():
         return pd.DataFrame()
 
@@ -148,7 +200,8 @@ def get_job_summary_df(job_path: Path) -> pd.DataFrame:
     data = []
     for task_path in tasks:
         row = {"Task": task_path.name}
-        best_score = None
+        best_val_score = None
+        best_test_score = None
         best_metric = None
 
         # Extract baseline score from scenario
@@ -160,14 +213,23 @@ def get_job_summary_df(job_path: Path) -> pd.DataFrame:
             row["Baseline"] = "-"
 
         for i in range(max_loops):
-            status, score, metric_name = get_loop_status(task_path, i)
+            status, val_score, test_score, metric_name = get_loop_status(task_path, i)
             row[f"L{i}"] = status
-            if score is not None:
-                if best_score is None or score > best_score:
-                    best_score = score
+            if val_score is not None:
+                if best_val_score is None or val_score > best_val_score:
+                    best_val_score = val_score
                     best_metric = metric_name
+            if test_score is not None:
+                if best_test_score is None or test_score > best_test_score:
+                    best_test_score = test_score
 
-        row["Best"] = f"{best_score:.1f}" if best_score is not None else "-"
+        # Show best validation and test scores
+        if best_val_score is not None and best_test_score is not None:
+            row["Best"] = f"{best_val_score:.1f}/{best_test_score:.1f}"
+        elif best_val_score is not None:
+            row["Best"] = f"{best_val_score:.1f}"
+        else:
+            row["Best"] = "-"
         row["Metric"] = best_metric if best_metric else "-"
         data.append(row)
 
@@ -194,11 +256,25 @@ def style_status_cell(val: str) -> str:
         return "color: #5cb85c; font-weight: bold"  # Green for success
     if val == "?":
         return "color: #888"
-    # Numeric score
+
+    # Check for feedback marker (+/-) on numeric scores
+    if val.endswith("+"):
+        return "color: #5cb85c; font-weight: bold"  # Green for accepted
+    if val.endswith("-"):
+        return "color: #d9534f; font-weight: bold"  # Red for rejected
+
+    # Numeric score without feedback marker (no feedback yet)
     try:
         float(val)
-        return "color: #5cb85c; font-weight: bold"  # Green for scores
+        return "color: #888"  # Gray for no feedback
     except ValueError:
+        if "/" in val:
+            parts = val.split("/")
+            try:
+                float(parts[0])
+                return "color: #888"  # Gray for no feedback
+            except ValueError:
+                pass
         return ""
 
 
@@ -217,8 +293,9 @@ def render_job_summary(job_path: Path, is_root: bool = False) -> None:
         "**Legend:** "
         "<span style='color:#f0ad4e'>C</span>=Coding, "
         "<span style='color:#5bc0de'>R</span>=Running, "
-        "<span style='color:#5cb85c'>Score/OK</span>=Success, "
-        "<span style='color:#d9534f'>X</span>=Failed",
+        "<span style='color:#5cb85c'>Score+</span>=Accepted, "
+        "<span style='color:#d9534f'>Score-/X</span>=Rejected/Failed, "
+        "<span style='color:#888'>Score</span>=No feedback",
         unsafe_allow_html=True,
     )
 

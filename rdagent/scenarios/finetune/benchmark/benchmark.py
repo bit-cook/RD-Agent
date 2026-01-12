@@ -308,13 +308,16 @@ def run_benchmark(
     )
 
     # Log benchmark result for UI display
+    # Use result_subdir to distinguish validation vs test in tag
+    log_tag = f"benchmark_result.{result_subdir}" if result_subdir else "benchmark_result"
     logger.log_object(
         {
             "accuracy_summary": accuracy_summary,
             "error_samples": error_samples,
             "benchmark_name": benchmark_name,
+            "split": result_subdir or "default",  # validation, test, or default
         },
-        tag="benchmark_result",
+        tag=log_tag,
     )
 
     return {

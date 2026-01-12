@@ -306,15 +306,20 @@ def parse_event(tag: str, content: Any, timestamp: datetime) -> Event | None:
             success=decision,
         )
 
-    # Benchmark result
+    # Benchmark result (supports benchmark_result, benchmark_result.validation, benchmark_result.test)
     if "benchmark_result" in tag:
         benchmark_name = content.get("benchmark_name", "Unknown") if isinstance(content, dict) else "Unknown"
         accuracy = content.get("accuracy_summary", {}) if isinstance(content, dict) else {}
+        # Extract split from tag or content
+        split = content.get("split", "") if isinstance(content, dict) else ""
+        if not split and "." in tag:
+            split = tag.split(".")[-1]  # e.g., "validation" or "test" from "benchmark_result.validation"
+        split_label = f" [{split.title()}]" if split and split != "default" else ""
         return Event(
             type="feedback",
             timestamp=timestamp,
             tag=tag,
-            title=f"Benchmark Result ({benchmark_name}: {len(accuracy)} datasets)",
+            title=f"Benchmark Result{split_label} ({benchmark_name}: {len(accuracy)} datasets)",
             content=content,
             loop_id=loop_id,
             stage="runner",
