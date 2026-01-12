@@ -136,6 +136,11 @@ for ((i=0; i<NUM_TASKS; i++)); do
         while ! conda run -n llm_finetune python -c "import requests" 2>/dev/null; do
             sleep 10
         done
+
+        echo "  Waiting for opencompass conda env..."
+        while ! conda run -n opencompass python -c "import opencompass" 2>/dev/null; do
+            sleep 10
+        done
         echo "  Environment ready!"
     elif [[ $i -lt $((NUM_TASKS - 1)) ]]; then
         sleep $STAGGER_DELAY
