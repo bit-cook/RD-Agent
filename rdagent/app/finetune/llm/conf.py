@@ -112,5 +112,6 @@ class LLMFinetunePropSetting(ExtendedBaseSettings):
     # Coder settings
     coder_max_loop: int = 10
 
+
 # Global setting instance for LLM finetuning scenario
 FT_RD_SETTING = LLMFinetunePropSetting()

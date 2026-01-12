@@ -316,7 +316,6 @@ class Trace(Generic[ASpecificScen, ASpecificKB]):
         return None
 
 
-
 class CheckpointSelector:
     """
     In the trace, we may start from any check point (we'll represent it as a variable `from_checkpoint_idx`)
@@ -455,10 +454,9 @@ class Experiment2Feedback(ABC):
         self.scen = scen
 
     @abstractmethod
-    def generate_feedback(self,
-                          exp: Experiment,
-                          trace: Trace,
-                          exception: Exception | None = None) -> ExperimentFeedback:
+    def generate_feedback(
+        self, exp: Experiment, trace: Trace, exception: Exception | None = None
+    ) -> ExperimentFeedback:
         """
         The `exp` should be executed and the results should be included, as well as the comparison
         between previous results (done by LLM).

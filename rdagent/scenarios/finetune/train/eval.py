@@ -21,6 +21,7 @@ from rdagent.core.evolving_framework import QueriedKnowledge
 from rdagent.core.experiment import FBWorkspace
 from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.finetune.benchmark import run_benchmark
+from rdagent.scenarios.finetune.benchmark.data.adaptor import BENCHMARK_CONFIG_DICT
 from rdagent.utils.agent.tpl import T
 from rdagent.utils.agent.workflow import build_cls_from_json_with_retry
 
@@ -166,24 +167,51 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
         # Extract loss history from training output
         loss_history = extract_loss_history(output_path)
 
-        # Use open-compass to evaluate the model on benchmark (only if training succeeded)
-        benchmark_result = run_benchmark(
+        # Get benchmark config to check sample count for small datasets
+        benchmark_cfg = BENCHMARK_CONFIG_DICT.get(target_task.benchmark)
+        sample_count = benchmark_cfg.sample_count if benchmark_cfg else None
+
+        # Validation set: [:100] - used for SOTA judgment, visible to agent
+        validation_result = run_benchmark(
             workspace_path=str(workspace_path),
             model_path=output_path,
             model_name=target_task.base_model,
             benchmark_name=target_task.benchmark,
             gpu_count=self.scen.gpu_count,
+            limit=100,
+            offset=0,
+            result_subdir="validation",
         )
 
+        # Test set: [100:200] - only for frontend display, not visible to agent
+        # For small datasets (< 100 samples), test = validation
+        if sample_count is not None and sample_count < 100:
+            test_result = validation_result
+            logger.info(f"Small dataset detected ({sample_count} samples), using validation as test")
+        else:
+            test_result = run_benchmark(
+                workspace_path=str(workspace_path),
+                model_path=output_path,
+                model_name=target_task.base_model,
+                benchmark_name=target_task.benchmark,
+                gpu_count=self.scen.gpu_count,
+                limit=100,
+                offset=100,
+                result_subdir="test",
+            )
+
         # Build comprehensive result with training metrics and benchmark results
+        # Note: "benchmark" is for agent (SOTA judgment), "benchmark_test" is for frontend only
         implementation.running_info.result = {
-            "benchmark": benchmark_result,  # Contains accuracy_summary and error_samples
+            "benchmark": validation_result,  # Agent visible - used for SOTA judgment
+            "benchmark_test": test_result,  # Agent invisible - frontend display only
             "training_metrics": {
                 "loss_history": loss_history,
                 "final_loss": loss_history[-1]["loss"] if loss_history else None,
                 "initial_loss": loss_history[0]["loss"] if loss_history else None,
             },
         }
+        benchmark_result = validation_result  # For backward compatibility with feedback
 
         # Call LLM for feedback analysis - LLM will determine final_decision
         return self._generate_llm_feedback(
@@ -236,7 +264,9 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
             exit_code=exit_code,
             model_files_status="Found" if model_files_exist else "Not found",
             stdout=parsed_stdout,  # Structured JSON instead of raw truncated log
-            benchmark_result=json.dumps(benchmark_result, indent=2) if benchmark_result else "N/A (not executed or failed)",
+            benchmark_result=(
+                json.dumps(benchmark_result, indent=2) if benchmark_result else "N/A (not executed or failed)"
+            ),
             loss_summary=json.dumps(loss_summary, indent=2) if loss_summary else "N/A",
         )
 

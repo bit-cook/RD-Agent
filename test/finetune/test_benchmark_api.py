@@ -97,6 +97,7 @@ def generate_api_config(
     api_base: str,
     dataset_imports: list[str],
     limit: int | None = None,
+    offset: int = 0,
     work_dir: str = "/workspace",
     max_out_len: int = 8192,
     max_seq_len: int = 32768,
@@ -109,12 +110,16 @@ def generate_api_config(
     # Format dataset imports
     dataset_import_lines = "\n".join(f"    from {module} import *" for module in dataset_imports)
 
-    # Format limit config
+    # Format limit config with offset support
     if limit:
+        if offset:
+            test_range = f"[{offset}:{offset + limit}]"
+        else:
+            test_range = f"[:{limit}]"
         limit_config = f"""    # Limit dataset size for faster testing
     if 'reader_cfg' not in ds:
         ds['reader_cfg'] = {{}}
-    ds['reader_cfg']['test_range'] = '[:{limit}]'
+    ds['reader_cfg']['test_range'] = '{test_range}'
 
     # Limit few-shot examples to avoid index out of range
     # FixKRetriever uses fix_id_list to select examples from train/dev split
@@ -130,7 +135,7 @@ def generate_api_config(
         if isinstance(evaluator, dict) and 'dataset_cfg' in evaluator:
             if 'reader_cfg' not in evaluator['dataset_cfg']:
                 evaluator['dataset_cfg']['reader_cfg'] = {{}}
-            evaluator['dataset_cfg']['reader_cfg']['test_range'] = '[:{limit}]'"""
+            evaluator['dataset_cfg']['reader_cfg']['test_range'] = '{test_range}'"""
     else:
         limit_config = ""
 
@@ -158,6 +163,7 @@ def run_benchmark_api(
     api_base: str,
     benchmark_name: str,
     limit: int = 3,
+    offset: int = 0,
     max_error_samples: int = 5,
     max_out_len: int = 8192,
     max_seq_len: int = 32768,
@@ -166,6 +172,7 @@ def run_benchmark_api(
     max_num_workers: int = 16,
     retry: int = 5,
     hf_token: str | None = None,
+    result_subdir: str = "",
 ):
     """
     API-based benchmark runner using rdagent Docker env.
@@ -177,6 +184,7 @@ def run_benchmark_api(
         api_base: OpenAI API base URL (will be converted to Docker-accessible URL)
         benchmark_name: Benchmark name
         limit: Dataset limit
+        offset: Starting offset for dataset sampling (default: 0)
         max_error_samples: Max error samples to extract
         max_out_len: Maximum output length
         max_seq_len: Maximum sequence length
@@ -184,6 +192,7 @@ def run_benchmark_api(
         query_per_second: Rate limit for API calls
         max_num_workers: Max number of workers for inference
         hf_token: Hugging Face token for gated datasets
+        result_subdir: Subdirectory for results (e.g., "validation", "test")
     """
     workspace = Path(workspace_path)
     workspace.mkdir(parents=True, exist_ok=True)
@@ -208,6 +217,7 @@ def run_benchmark_api(
         api_base=docker_api_base,
         dataset_imports=[cfg.dataset],
         limit=limit,
+        offset=offset,
         work_dir="/workspace",
         max_out_len=max_out_len,
         max_seq_len=max_seq_len,
@@ -240,9 +250,15 @@ def run_benchmark_api(
         env_vars["HF_TOKEN"] = hf_token
 
     # Run opencompass in Docker with --debug to avoid subprocess segfault
-    cmd = "opencompass /workspace/config.py --work-dir /workspace/benchmark_results --debug"
+    if result_subdir:
+        benchmark_work_dir = f"/workspace/benchmark_results/{result_subdir}"
+    else:
+        benchmark_work_dir = "/workspace/benchmark_results"
+    cmd = f"opencompass /workspace/config.py --work-dir {benchmark_work_dir} --debug"
     print(f"Running in Docker: {cmd}")
     print(f"API Base (Docker): {docker_api_base}")
+    if offset:
+        print(f"Dataset range: [{offset}:{offset + limit}]")
 
     result = env.run(
         entry=cmd,
@@ -257,6 +273,8 @@ def run_benchmark_api(
 
     # Extract results from local workspace
     work_dir = workspace / "benchmark_results"
+    if result_subdir:
+        work_dir = work_dir / result_subdir
     timestamped_dirs = sorted(work_dir.glob("202*_*"), reverse=True)
     if not timestamped_dirs:
         raise RuntimeError(f"No results found in {work_dir}")
@@ -317,8 +335,8 @@ if __name__ == "__main__":
     # Hardcoded benchmark list - comment/uncomment to select benchmarks to test
     BENCHMARKS_TO_TEST = [
         # Math Reasoning
-        "aime24",
-        "aime25",
+        # "aime24",
+        # "aime25",
         # "math",
         # General Knowledge
         # "mmlu",
@@ -370,6 +388,7 @@ if __name__ == "__main__":
             query_per_second=QUERY_PER_SECOND,
             max_num_workers=MAX_NUM_WORKERS,
             hf_token=HF_TOKEN,
+            offset=100,
         )
 
         error_samples = result.get("error_samples", [])

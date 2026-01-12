@@ -71,9 +71,7 @@ class LLMFinetuneExpGen(ExpGen):
 
         return self._gen_hypothesis(trace, base_model, parent_exp=sota_exp)
 
-    def _gen_hypothesis(
-        self, trace: Trace, base_model: str, parent_exp: FTExperiment | None = None
-    ) -> FTExperiment:
+    def _gen_hypothesis(self, trace: Trace, base_model: str, parent_exp: FTExperiment | None = None) -> FTExperiment:
         """Generate hypothesis covering both data processing and training configuration.
 
         Args:

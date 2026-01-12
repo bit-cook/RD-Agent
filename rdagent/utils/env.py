@@ -51,7 +51,6 @@ from rdagent.utils.agent.tpl import T
 from rdagent.utils.fmt import shrink_text
 from rdagent.utils.workflow import wait_retry
 
-
 CacheKeyFunc = Callable[[str | Path], list[list[str]]]
 
 
@@ -156,6 +155,7 @@ class EnvConf(ExtendedBaseSettings):
     running_timeout_period: int | None = 3600  # 10 minutes
 
     """it is a function to calculating hash keys"""
+
     def get_workspace_content_for_hash(self, local_path: str | Path) -> list[list[str]]:
         """Get content of key files in workspace for cache hash calculation.
 
@@ -175,9 +175,7 @@ class EnvConf(ExtendedBaseSettings):
         return [
             [str(path.relative_to(local_path)), path.read_text()]
             for path in sorted(
-                list(local_path.rglob("*.py"))
-                + list(local_path.rglob("*.csv"))
-                + list(local_path.rglob("*.yaml"))
+                list(local_path.rglob("*.py")) + list(local_path.rglob("*.csv")) + list(local_path.rglob("*.yaml"))
             )
         ]
 
@@ -203,19 +201,22 @@ class EnvResult:
     The result of running the environment.
     It contains the stdout, the exit code, and the running time in seconds.
     """
+
     def __init__(self, stdout: str, exit_code: int, running_time: float):
         self.full_stdout = stdout
         self.exit_code = exit_code
         self.running_time = running_time
         self.stored_full_stdout_to_truncated_stdout = {}
-    
+
     def update_stdout(self, stdout: str) -> None:
         self.full_stdout = stdout
-    
+
     @property
     def stdout(self) -> str:
         if self.full_stdout not in self.stored_full_stdout_to_truncated_stdout:
-            self.stored_full_stdout_to_truncated_stdout[self.full_stdout] = self._get_truncated_stdout(full_stdout=self.full_stdout)
+            self.stored_full_stdout_to_truncated_stdout[self.full_stdout] = self._get_truncated_stdout(
+                full_stdout=self.full_stdout
+            )
         return self.stored_full_stdout_to_truncated_stdout[self.full_stdout]
 
     def hash_full_stdout(self, full_stdout) -> str:

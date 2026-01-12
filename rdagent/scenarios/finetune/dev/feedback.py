@@ -124,7 +124,7 @@ class FTExperiment2Feedback(Experiment2Feedback):
             sota_benchmark = trace.sota_benchmark() if trace else None
 
             # Get baseline benchmark (always exists, computed at scenario init)
-            baseline_benchmark = getattr(self.scen, 'baseline_benchmark_score', None)
+            baseline_benchmark = getattr(self.scen, "baseline_benchmark_score", None)
 
             system_prompt = T(f".prompts:{version}.system").r(
                 scenario=self.scen.get_scenario_all_desc(),

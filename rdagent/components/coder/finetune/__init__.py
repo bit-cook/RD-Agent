@@ -249,10 +249,7 @@ class LLMFinetuneEvolvingStrategy(MultiProcessEvolvingStrategy):
         prev_task_feedback: CoSTEERSingleFeedback | None = None,
     ) -> dict[str, str]:
         """Implement a single fine-tuning task by generating LlamaFactory config"""
-        if (
-            prev_task_feedback is not None
-            and prev_task_feedback.source_feedback.get("FTCoderEvaluator", False)
-        ):
+        if prev_task_feedback is not None and prev_task_feedback.source_feedback.get("FTCoderEvaluator", False):
             logger.info("Previous training code passed evaluation, skipping regeneration")
             return {}
 

@@ -119,9 +119,11 @@ def run_benchmark(
     benchmark_name: str,
     gpu_count: int,
     limit: Optional[int] = 100,
+    offset: int = 0,
     num_runs: int = 1,
     pass_k: Optional[List[int]] = None,
     max_error_samples: int = 10,
+    result_subdir: str = "",
 ) -> Dict[str, Any]:
     """
     Run benchmark evaluation on a fine-tuned model.
@@ -133,9 +135,11 @@ def run_benchmark(
         benchmark_name: Benchmark dataset name (e.g., "aime25", "gsm8k")
         gpu_count: GPU count for tensor_parallel_size (from scenario.device_info)
         limit: Optional dataset size limit for testing
+        offset: Starting offset for dataset sampling (default: 0)
         num_runs: Number of times to run each sample (default: 1)
         pass_k: Optional list of k values for pass@k evaluation (e.g., [1, 5, 10])
         max_error_samples: Maximum number of error samples to extract for feedback
+        result_subdir: Subdirectory for results (e.g., "validation", "test")
 
     Returns:
         Dict containing:
@@ -206,6 +210,7 @@ def run_benchmark(
         # Dataset configuration
         "dataset_imports": [dataset_imports],
         "limit": limit or "",
+        "offset": offset,
         "num_runs": num_runs,
         "pass_k": pass_k,
         "work_dir": adapter_path_in_env,
@@ -219,13 +224,19 @@ def run_benchmark(
     # Note: env was already created above via get_benchmark_env()
 
     (workspace_path / "config.py").write_text(config_content)
-    benchmark_work_dir = f"{ws_prefix}/benchmark_results"
+    # Use result_subdir for validation/test separation
+    if result_subdir:
+        benchmark_work_dir = f"{ws_prefix}/benchmark_results/{result_subdir}"
+    else:
+        benchmark_work_dir = f"{ws_prefix}/benchmark_results"
 
     # Logging
     logger.info(f"Running benchmark '{benchmark_name}' on model: {model_path}")
     logger.info(f"Base model: {model_name}, LoRA?: {model_is_lora}")
     logger.info(f"Workspace: {workspace_path}")
     logger.info(f"Benchmark work_dir: {benchmark_work_dir}")
+    if offset:
+        logger.info(f"Dataset range: [{offset}:{offset + (limit or 0)}]")
 
     # Environment variables
     env_vars = {
@@ -239,6 +250,8 @@ def run_benchmark(
 
     # Check if results already exist (skip re-running if cached)
     results_base = workspace_path / "benchmark_results"
+    if result_subdir:
+        results_base = results_base / result_subdir
     timestamped_dirs = sorted([d for d in results_base.glob("202*_*") if d.is_dir()], reverse=True)
 
     if timestamped_dirs:

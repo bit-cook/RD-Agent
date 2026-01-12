@@ -1,7 +1,7 @@
 import json
 import os
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from rdagent.app.finetune.llm.conf import FT_RD_SETTING
 from rdagent.components.coder.finetune.conf import get_ft_env
@@ -63,9 +63,10 @@ class LLMFinetuneScen(DataScienceScen):
         # Initialize memory estimator
         self.memory_report = self._generate_memory_report()
 
-        self.baseline_benchmark_score = self.run_baseline_model_evaluation(model_name=self.base_model, benchmark_name=self.target_benchmark)
+        self.baseline_benchmark_score = self.run_baseline_model_evaluation(
+            model_name=self.base_model, benchmark_name=self.target_benchmark
+        )
 
-    
     def _get_gpu_count(self) -> int:
         """Return GPU count parsed from device_info stored at initialization."""
         gpu_info = json.loads(self.device_info).get("gpu", {})

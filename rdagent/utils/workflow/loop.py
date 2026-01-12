@@ -249,7 +249,9 @@ class LoopBase:
                         if self.skip_loop_error_stepname:
                             next_step_idx = self.steps.index(self.skip_loop_error_stepname)
                             if next_step_idx <= si:
-                                raise RuntimeError(f"Cannot skip backwards or to same step. Current: {si} ({name}), Target: {next_step_idx} ({self.skip_loop_error_stepname})") from e
+                                raise RuntimeError(
+                                    f"Cannot skip backwards or to same step. Current: {si} ({name}), Target: {next_step_idx} ({self.skip_loop_error_stepname})"
+                                ) from e
                         else:
                             # Jump to the last step (assuming last step is for recording)
                             next_step_idx = len(self.steps) - 1

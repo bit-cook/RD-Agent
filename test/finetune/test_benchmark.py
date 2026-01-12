@@ -31,7 +31,9 @@ def run_benchmark_simple(
     benchmark_name: str,
     gpu_count: int = 4,
     limit: int = 3,
+    offset: int = 0,
     max_error_samples: int = 5,
+    result_subdir: str = "",
 ):
     """
     Simplified benchmark runner using rdagent Docker env.
@@ -42,7 +44,9 @@ def run_benchmark_simple(
         benchmark_name: Benchmark name
         gpu_count: GPU count
         limit: Dataset limit
+        offset: Starting offset for dataset sampling (default: 0)
         max_error_samples: Max error samples to extract
+        result_subdir: Subdirectory for results (e.g., "validation", "test")
     """
     workspace = Path(workspace_path)
     workspace.mkdir(parents=True, exist_ok=True)
@@ -68,6 +72,7 @@ def run_benchmark_simple(
         lora_path="",
         dataset_imports=[cfg.dataset],
         limit=limit,
+        offset=offset,
         num_runs=1,
         pass_k=None,
         work_dir="/workspace",  # Docker workspace path
@@ -100,8 +105,14 @@ def run_benchmark_simple(
     }
 
     # Run opencompass in Docker
-    cmd = "opencompass /workspace/config.py --work-dir /workspace/benchmark_results"
+    if result_subdir:
+        benchmark_work_dir = f"/workspace/benchmark_results/{result_subdir}"
+    else:
+        benchmark_work_dir = "/workspace/benchmark_results"
+    cmd = f"opencompass /workspace/config.py --work-dir {benchmark_work_dir}"
     print(f"Running in Docker: {cmd}")
+    if offset:
+        print(f"Dataset range: [{offset}:{offset + limit}]")
 
     result = env.run(
         entry=cmd,
@@ -116,6 +127,8 @@ def run_benchmark_simple(
 
     # Extract results from local workspace
     work_dir = workspace / "benchmark_results"
+    if result_subdir:
+        work_dir = work_dir / result_subdir
     timestamped_dirs = sorted(work_dir.glob("202*_*"), reverse=True)
     if not timestamped_dirs:
         raise RuntimeError(f"No results found in {work_dir}")
@@ -184,20 +197,20 @@ if __name__ == "__main__":
         # "panorama_pi4pc",
         # "panorama_noc4pc",
         # PANORAMA - Patent Analysis (CoT)
-        "panorama_par4pc_cot",
-        "panorama_pi4pc_cot",
-        "panorama_noc4pc_cot",
+        # "panorama_par4pc_cot",
+        # "panorama_pi4pc_cot",
+        # "panorama_noc4pc_cot",
         # ChemCoTBench - Chemistry Reasoning
         # "chemcotbench",
-        # "chemcotbench_mol_und",
-        # "chemcotbench_mol_edit",
-        # "chemcotbench_mol_opt",
-        # "chemcotbench_reaction",
+        "chemcotbench_mol_und",
+        "chemcotbench_mol_edit",
+        "chemcotbench_mol_opt",
+        "chemcotbench_reaction",
         # TableBench - Table QA
-        # "tablebench_data_analysis",
-        # "tablebench_fact_checking",
-        # "tablebench_numerical_reasoning",
-        # "tablebench_visualization",
+        "tablebench_data_analysis",
+        "tablebench_fact_checking",
+        "tablebench_numerical_reasoning",
+        "tablebench_visualization",
         # "tablebench_gen",
         # Finance
         # "FinanceIQ_ppl",

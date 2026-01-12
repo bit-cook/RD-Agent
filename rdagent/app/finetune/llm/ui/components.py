@@ -608,9 +608,10 @@ def render_training_result(result: dict) -> None:
         if final_loss:
             col2.metric("Final Loss", f"{final_loss:.4f}")
 
+    # Validation benchmark ([:100]) - used for SOTA judgment
     benchmark = result.get("benchmark", {})
     if benchmark:
-        st.markdown("**Benchmark Results:**")
+        st.markdown("**Validation Benchmark ([:100]):**")
         # Detect format: old format has "accuracy_summary" at top level,
         # new format has benchmark names as keys with nested accuracy_summary
         if "accuracy_summary" in benchmark:
@@ -622,6 +623,24 @@ def render_training_result(result: dict) -> None:
         else:
             # New format: {bm_name: {accuracy_summary: {...}}, ...}
             for bm_name, bm_result in benchmark.items():
+                if isinstance(bm_result, dict) and "accuracy_summary" in bm_result:
+                    st.markdown(f"*{bm_name}:*")
+                    accuracy_summary = bm_result.get("accuracy_summary", {})
+                    if accuracy_summary:
+                        rows = [{"dataset": ds, **metrics} for ds, metrics in accuracy_summary.items()]
+                        st.dataframe(rows)
+
+    # Test benchmark ([100:200]) - frontend display only, not visible to agent
+    benchmark_test = result.get("benchmark_test", {})
+    if benchmark_test and benchmark_test != benchmark:  # Avoid duplicate display for small datasets
+        st.markdown("**Test Benchmark ([100:200]):**")
+        if "accuracy_summary" in benchmark_test:
+            accuracy_summary = benchmark_test.get("accuracy_summary", {})
+            if accuracy_summary:
+                rows = [{"dataset": ds, **metrics} for ds, metrics in accuracy_summary.items()]
+                st.dataframe(rows)
+        else:
+            for bm_name, bm_result in benchmark_test.items():
                 if isinstance(bm_result, dict) and "accuracy_summary" in bm_result:
                     st.markdown(f"*{bm_name}:*")
                     accuracy_summary = bm_result.get("accuracy_summary", {})
