@@ -142,16 +142,17 @@ def extract_baseline_scores(task_path: Path) -> dict[str, tuple[str, float, bool
 
 def get_loop_status(
     task_path: Path, loop_id: int
-) -> tuple[str, float | None, float | None, str | None]:
+) -> tuple[str, float | None, float | None, str | None, bool | None]:
     """
-    Get loop status, validation score, test score, and metric name with direction arrow
-    Returns: (status_str, val_score_or_none, test_score_or_none, metric_display_or_none)
+    Get loop status, validation score, test score, metric name with direction arrow, and feedback decision
+    Returns: (status_str, val_score_or_none, test_score_or_none, metric_display_or_none, feedback_decision)
     Status: 'C'=Coding, 'R'=Running, 'X'=Failed, score_str=Success
     metric_display: metric name with direction arrow (e.g., "accuracy ↑")
+    feedback_decision: True=accepted, False=rejected, None=no feedback
     """
     loop_path = task_path / f"Loop_{loop_id}"
     if not loop_path.exists():
-        return "-", None, None, None
+        return "-", None, None, None, None
 
     # Check for benchmark results first (highest priority - means completed)
     scores = extract_benchmark_scores(loop_path)
@@ -188,29 +189,24 @@ def get_loop_status(
             status_str = f"{val_score:.1f}/{test_score:.1f}"
         else:
             status_str = f"{val_score:.1f}"
-        # Add feedback marker for coloring
-        if feedback_decision is True:
-            status_str += "+"
-        elif feedback_decision is False:
-            status_str += "-"
-        return status_str, val_score, test_score, metric_display
+        return status_str, val_score, test_score, metric_display, feedback_decision
 
     # Check feedback stage (no benchmark result, use feedback decision directly)
     if feedback_decision is not None:
-        return ("OK" if feedback_decision else "X"), None, None, None
+        return ("OK" if feedback_decision else "X"), None, None, None, feedback_decision
 
     # Check running stage
     running_files = list(loop_path.rglob("**/running/**/*.pkl"))
     if running_files:
-        return "R", None, None, None
+        return "R", None, None, None, None
 
     # Check coding stage
     coding_files = list(loop_path.rglob("**/coding/**/*.pkl"))
     if coding_files:
-        return "C", None, None, None
+        return "C", None, None, None, None
 
     # Has directory but no recognized files
-    return "?", None, None, None
+    return "?", None, None, None, None
 
 
 def get_max_loops(job_path: Path) -> int:
@@ -223,26 +219,32 @@ def get_max_loops(job_path: Path) -> int:
     return max_loops
 
 
-def get_job_summary_df(job_path: Path) -> pd.DataFrame:
-    """Generate summary DataFrame for all tasks in job
+def get_job_summary_df(job_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Generate summary DataFrame and decision DataFrame for all tasks in job
 
     Each loop column shows "val/test" format when both scores are available.
     Best columns show the best validation and test scores separately.
+
+    Returns:
+        (df, decisions_df): df is display data, decisions_df has same structure
+        but values are True/False/None for feedback decision
     """
     if not job_path.exists():
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
     tasks = [d for d in sorted(job_path.iterdir(), reverse=True) if is_valid_task(d)]
     if not tasks:
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
     max_loops = get_max_loops(job_path)
     if max_loops == 0:
         max_loops = 10  # Default display columns
 
     data = []
+    decisions_data = []
     for task_path in tasks:
         row = {"Task": task_path.name}
+        decision_row = {"Task": task_path.name}
         best_val_score = None
         best_test_score = None
         best_metric = None
@@ -257,10 +259,12 @@ def get_job_summary_df(job_path: Path) -> pd.DataFrame:
             row["Baseline"] = f"{val_baseline[1]:.1f}"
         else:
             row["Baseline"] = "-"
+        decision_row["Baseline"] = None
 
         for i in range(max_loops):
-            status, val_score, test_score, metric_name = get_loop_status(task_path, i)
+            status, val_score, test_score, metric_name, feedback_decision = get_loop_status(task_path, i)
             row[f"L{i}"] = status
+            decision_row[f"L{i}"] = feedback_decision
             if val_score is not None:
                 if best_val_score is None or val_score > best_val_score:
                     best_val_score = val_score
@@ -277,19 +281,29 @@ def get_job_summary_df(job_path: Path) -> pd.DataFrame:
         else:
             row["Best"] = "-"
         row["Metric"] = best_metric if best_metric else "-"
+        decision_row["Metric"] = None
+        decision_row["Best"] = None
         data.append(row)
+        decisions_data.append(decision_row)
 
     # Ensure column order: Task, Metric, Baseline, L0, L1, ..., Best
     df = pd.DataFrame(data)
+    decisions_df = pd.DataFrame(decisions_data)
     if not df.empty:
         loop_cols = [c for c in df.columns if c.startswith("L")]
         cols = ["Task", "Metric", "Baseline"] + sorted(loop_cols, key=lambda x: int(x[1:])) + ["Best"]
         df = df[cols]
-    return df
+        decisions_df = decisions_df[cols]
+    return df, decisions_df
 
 
-def style_status_cell(val: str) -> str:
-    """Style cell based on status value"""
+def style_status_cell(val: str, decision: bool | None = None) -> str:
+    """Style cell based on status value and feedback decision
+
+    Args:
+        val: The cell value
+        decision: True=accepted (green), False=rejected (red), None=no feedback (gray)
+    """
     if val == "-":
         return "color: #888"
     if val == "C":
@@ -303,25 +317,51 @@ def style_status_cell(val: str) -> str:
     if val == "?":
         return "color: #888"
 
-    # Check for feedback marker (+/-) on numeric scores
-    if val.endswith("+"):
-        return "color: #5cb85c; font-weight: bold"  # Green for accepted
-    if val.endswith("-"):
-        return "color: #d9534f; font-weight: bold"  # Red for rejected
-
-    # Numeric score without feedback marker (no feedback yet)
+    # Check if it's a numeric score (with optional "/" separator)
+    is_numeric = False
     try:
         float(val)
-        return "color: #888"  # Gray for no feedback
+        is_numeric = True
     except ValueError:
         if "/" in val:
             parts = val.split("/")
             try:
                 float(parts[0])
-                return "color: #888"  # Gray for no feedback
+                is_numeric = True
             except ValueError:
                 pass
-        return ""
+
+    if is_numeric:
+        # Use decision for coloring
+        if decision is True:
+            return "color: #5cb85c; font-weight: bold"  # Green for accepted
+        elif decision is False:
+            return "color: #d9534f; font-weight: bold"  # Red for rejected
+        else:
+            return "color: #888"  # Gray for no feedback
+
+    return ""
+
+
+def style_df_with_decisions(df: pd.DataFrame, decisions_df: pd.DataFrame) -> pd.io.formats.style.Styler:
+    """Apply styling to dataframe based on decision data
+
+    Args:
+        df: Display dataframe
+        decisions_df: DataFrame with same shape, containing True/False/None values
+    """
+    def apply_styles(row_idx: int, col: str) -> str:
+        val = df.iloc[row_idx][col]
+        decision = decisions_df.iloc[row_idx][col] if col in decisions_df.columns else None
+        return style_status_cell(str(val), decision)
+
+    # Build style matrix
+    styles = pd.DataFrame("", index=df.index, columns=df.columns)
+    for row_idx in range(len(df)):
+        for col in df.columns:
+            styles.iloc[row_idx][col] = apply_styles(row_idx, col)
+
+    return df.style.apply(lambda _: styles, axis=None)
 
 
 def render_job_summary(job_path: Path, is_root: bool = False) -> None:
@@ -329,7 +369,7 @@ def render_job_summary(job_path: Path, is_root: bool = False) -> None:
     title = "Standalone Tasks" if is_root else f"Job: {job_path.name}"
     st.subheader(title)
 
-    df = get_job_summary_df(job_path)
+    df, decisions_df = get_job_summary_df(job_path)
     if df.empty:
         st.warning("No valid tasks found in this job directory")
         return
@@ -339,24 +379,31 @@ def render_job_summary(job_path: Path, is_root: bool = False) -> None:
         "**Legend:** "
         "<span style='color:#f0ad4e'>C</span>=Coding, "
         "<span style='color:#5bc0de'>R</span>=Running, "
-        "<span style='color:#5cb85c'>Score+</span>=Accepted, "
-        "<span style='color:#d9534f'>Score-/X</span>=Rejected/Failed, "
+        "<span style='color:#5cb85c'>Score</span>=Accepted, "
+        "<span style='color:#d9534f'>Score/X</span>=Rejected/Failed, "
         "<span style='color:#888'>Score</span>=No feedback",
         unsafe_allow_html=True,
     )
 
     # Style and display dataframe
-    styled_df = df.style.map(style_status_cell)
+    styled_df = style_df_with_decisions(df, decisions_df)
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     # Summary stats
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Tasks", len(df))
     with col2:
         # Count tasks with any score
         tasks_with_score = df["Best"].apply(lambda x: x != "-").sum()
         st.metric("With Score", tasks_with_score)
+    with col3:
+        # Count tasks with at least one improved loop (decision=True)
+        loop_cols = [c for c in decisions_df.columns if c.startswith("L")]
+        tasks_improved = decisions_df[loop_cols].apply(
+            lambda row: any(v is True for v in row), axis=1
+        ).sum()
+        st.metric("Improved", tasks_improved)
 
     # Detailed scores table
     render_task_detail_selector(job_path)
@@ -512,7 +559,7 @@ def render_task_detail_selector(job_path: Path) -> None:
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("**Validation [0:100]**")
+            st.markdown("**Validation**")
             df_val = get_task_full_benchmark_df(task_path, "validation")
             if not df_val.empty:
                 st.dataframe(df_val, use_container_width=True, hide_index=True)
@@ -520,7 +567,7 @@ def render_task_detail_selector(job_path: Path) -> None:
                 st.info("No validation scores")
 
         with col2:
-            st.markdown("**Test [100:200]**")
+            st.markdown("**Test**")
             df_test = get_task_full_benchmark_df(task_path, "test")
             if not df_test.empty:
                 st.dataframe(df_test, use_container_width=True, hide_index=True)
