@@ -14,6 +14,7 @@ from rdagent.components.coder.finetune.conf import (
     get_data_processing_env,
     get_ft_env,
     get_workspace_prefix,
+    inject_data_stats,
 )
 from rdagent.components.coder.finetune.exp import FTTask
 from rdagent.components.coder.finetune.unified_validator import LLMConfigValidator
@@ -122,6 +123,15 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
             )
 
         logger.info("Full data processing completed successfully")
+
+        # Update data_stats.json with full dataset statistics
+        # This ensures feedback sees the correct sample count, not debug mode count
+        data_json_path = implementation.workspace_path / FT_DATA_FILE_NAME
+        if data_json_path.exists():
+            with open(data_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list) and len(data) > 0:
+                inject_data_stats(implementation, data, data_stdout)
 
         # ========== Stage 2: Full Training ==========
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Literal
@@ -7,6 +8,8 @@ from typing import Any, Literal
 from rdagent.app.finetune.llm.conf import FT_RD_SETTING
 from rdagent.components.coder.CoSTEER.config import CoSTEERSettings
 from rdagent.core.experiment import FBWorkspace
+from rdagent.log import rdagent_logger as logger
+from rdagent.scenarios.finetune.scen.utils import _compute_column_stats
 from rdagent.utils.agent.tpl import T
 from rdagent.utils.env import (
     BenchmarkCondaConf,
@@ -349,3 +352,55 @@ def get_benchmark_env(
 
     env.prepare()
     return env
+
+
+def parse_estimation_from_stdout(stdout: str) -> dict:
+    """Parse estimation info from script SUMMARY output.
+
+    Expected format in stdout:
+    ========== SUMMARY ==========
+    Total output samples: 10
+    Raw samples processed: 100
+    Raw samples total: 50000
+    Estimated full output: ~5000
+    =============================
+    """
+    estimation = {}
+    if not stdout:
+        return estimation
+
+    patterns = {
+        "output_samples": r"Total output samples:\s*(\d+)",
+        "raw_processed": r"Raw samples processed:\s*(\d+)",
+        "raw_total": r"Raw samples total:\s*(\d+)",
+        "estimated_full": r"Estimated full output:\s*~?(\d+)",
+    }
+    for key, pattern in patterns.items():
+        match = re.search(pattern, stdout)
+        if match:
+            estimation[key] = int(match.group(1))
+
+    return estimation
+
+
+def inject_data_stats(implementation: FBWorkspace, data: list, stdout: str) -> None:
+    """Compute token statistics and inject data_stats.json.
+
+    Used by both FTDataEvaluator (coding stage) and FTRunnerEvaluator (running stage).
+
+    Args:
+        implementation: The workspace to inject data_stats.json into
+        data: The data list from data.json
+        stdout: The stdout from process_data.py execution
+    """
+    token_stats = _compute_column_stats(data)
+    estimation = parse_estimation_from_stdout(stdout)
+
+    data_stats = {
+        "total_samples": len(data),
+        "token_stats": token_stats,
+        "estimation": estimation,
+    }
+
+    implementation.inject_files(**{"data_stats.json": json.dumps(data_stats, indent=2)})
+    logger.info(f"Injected data_stats.json with {len(data)} samples")
