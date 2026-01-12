@@ -63,9 +63,13 @@ class LLMFinetuneScen(DataScienceScen):
         # Initialize memory estimator
         self.memory_report = self._generate_memory_report()
 
-        self.baseline_benchmark_score = self.run_baseline_model_evaluation(
+        baseline_result = self.run_baseline_model_evaluation(
             model_name=self.base_model, benchmark_name=self.target_benchmark
         )
+        # Agent only sees validation score
+        self.baseline_benchmark_score = baseline_result.get("benchmark", {})
+        # Test score is for frontend display only
+        self.baseline_benchmark_score_test = baseline_result.get("benchmark_test", {})
 
     def _get_gpu_count(self) -> int:
         """Return GPU count parsed from device_info stored at initialization."""
@@ -86,14 +90,32 @@ class LLMFinetuneScen(DataScienceScen):
             ws.workspace_path / "models" / model_name,
             dirs_exist_ok=True,
         )
-        bm = run_benchmark(
+        # Validation set [0:100] - visible to agent
+        validation_result = run_benchmark(
             workspace_path=str(ws.workspace_path),
             model_path=ws.workspace_path / "models" / model_name,
             model_name=model_name,
             benchmark_name=benchmark_name,
             gpu_count=self.gpu_count,
+            limit=100,
+            offset=0,
+            result_subdir="validation",
         )
-        return bm
+        # Test set [100:200] - NOT visible to agent, frontend only
+        test_result = run_benchmark(
+            workspace_path=str(ws.workspace_path),
+            model_path=ws.workspace_path / "models" / model_name,
+            model_name=model_name,
+            benchmark_name=benchmark_name,
+            gpu_count=self.gpu_count,
+            limit=100,
+            offset=100,
+            result_subdir="test",
+        )
+        return {
+            "benchmark": validation_result,      # Agent sees this
+            "benchmark_test": test_result,       # Agent does NOT see this
+        }
 
     def real_full_timeout(self):
         return FT_RD_SETTING.full_timeout

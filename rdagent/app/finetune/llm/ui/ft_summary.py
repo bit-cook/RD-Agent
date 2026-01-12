@@ -70,7 +70,7 @@ def extract_benchmark_scores(loop_path: Path) -> dict[str, tuple[str, float, boo
 
 
 def extract_baseline_score(task_path: Path) -> tuple[str, float] | None:
-    """Extract baseline benchmark score from scenario object.
+    """Extract baseline benchmark score from scenario object (legacy, validation only).
 
     Returns:
         (metric_name, score) or None
@@ -95,6 +95,49 @@ def extract_baseline_score(task_path: Path) -> tuple[str, float] | None:
         except Exception:
             pass
     return None
+
+
+def extract_baseline_scores(task_path: Path) -> dict[str, tuple[str, float, bool] | None]:
+    """Extract both validation and test baseline benchmark scores from scenario.
+
+    Returns:
+        {"validation": (metric_name, score, higher_is_better) or None,
+         "test": (metric_name, score, higher_is_better) or None}
+    """
+    scenario_dir = task_path / "scenario"
+    if not scenario_dir.exists():
+        return {"validation": None, "test": None}
+
+    for pkl_file in scenario_dir.rglob("*.pkl"):
+        try:
+            with open(pkl_file, "rb") as f:
+                scenario = pickle.load(f)
+
+            benchmark_name = getattr(scenario, "target_benchmark", "")
+            result = {"validation": None, "test": None}
+
+            # Validation score
+            baseline_val = getattr(scenario, "baseline_benchmark_score", None)
+            if baseline_val and isinstance(baseline_val, dict):
+                accuracy_summary = baseline_val.get("accuracy_summary", {})
+                if isinstance(accuracy_summary, dict) and accuracy_summary:
+                    core = get_core_metric_score(benchmark_name, accuracy_summary)
+                    if core:
+                        result["validation"] = core
+
+            # Test score (new format only)
+            baseline_test = getattr(scenario, "baseline_benchmark_score_test", None)
+            if baseline_test and isinstance(baseline_test, dict):
+                accuracy_summary = baseline_test.get("accuracy_summary", {})
+                if isinstance(accuracy_summary, dict) and accuracy_summary:
+                    core = get_core_metric_score(benchmark_name, accuracy_summary)
+                    if core:
+                        result["test"] = core
+
+            return result
+        except Exception:
+            pass
+    return {"validation": None, "test": None}
 
 
 def get_loop_status(
@@ -204,11 +247,14 @@ def get_job_summary_df(job_path: Path) -> pd.DataFrame:
         best_test_score = None
         best_metric = None
 
-        # Extract baseline score from scenario
-        baseline_result = extract_baseline_score(task_path)
-        if baseline_result:
-            _, baseline_score = baseline_result
-            row["Baseline"] = f"{baseline_score:.1f}"
+        # Extract baseline scores (validation and test) from scenario
+        baseline_scores = extract_baseline_scores(task_path)
+        val_baseline = baseline_scores.get("validation")
+        test_baseline = baseline_scores.get("test")
+        if val_baseline and test_baseline:
+            row["Baseline"] = f"{val_baseline[1]:.1f}/{test_baseline[1]:.1f}"
+        elif val_baseline:
+            row["Baseline"] = f"{val_baseline[1]:.1f}"
         else:
             row["Baseline"] = "-"
 
@@ -311,3 +357,172 @@ def render_job_summary(job_path: Path, is_root: bool = False) -> None:
         # Count tasks with any score
         tasks_with_score = df["Best"].apply(lambda x: x != "-").sum()
         st.metric("With Score", tasks_with_score)
+
+    # Detailed scores table
+    render_task_detail_selector(job_path)
+
+
+def extract_full_benchmark(loop_path: Path, split: str = "") -> dict | None:
+    """Extract full accuracy_summary from loop directory.
+
+    Args:
+        loop_path: Path to loop directory
+        split: Filter by split type ("validation", "test", or "" for any)
+
+    Returns:
+        accuracy_summary dict {dataset: {metric: value, ...}, ...} or None
+    """
+    for pkl_file in loop_path.rglob("**/benchmark_result*/**/*.pkl"):
+        try:
+            with open(pkl_file, "rb") as f:
+                content = pickle.load(f)
+            if isinstance(content, dict):
+                # Check split filter
+                content_split = content.get("split", "")
+                if split and content_split != split:
+                    continue
+
+                accuracy_summary = content.get("accuracy_summary", {})
+                if isinstance(accuracy_summary, dict) and accuracy_summary:
+                    return accuracy_summary
+        except Exception:
+            pass
+    return None
+
+
+def extract_baseline_full_benchmark(task_path: Path, split: str = "validation") -> dict | None:
+    """Extract full accuracy_summary from baseline scenario.
+
+    Args:
+        task_path: Path to task directory
+        split: "validation" or "test"
+
+    Returns:
+        accuracy_summary dict or None
+    """
+    scenario_dir = task_path / "scenario"
+    if not scenario_dir.exists():
+        return None
+
+    for pkl_file in scenario_dir.rglob("*.pkl"):
+        try:
+            with open(pkl_file, "rb") as f:
+                scenario = pickle.load(f)
+
+            if split == "validation":
+                baseline = getattr(scenario, "baseline_benchmark_score", None)
+            else:
+                baseline = getattr(scenario, "baseline_benchmark_score_test", None)
+
+            if baseline and isinstance(baseline, dict):
+                accuracy_summary = baseline.get("accuracy_summary", {})
+                if isinstance(accuracy_summary, dict) and accuracy_summary:
+                    return accuracy_summary
+        except Exception:
+            pass
+    return None
+
+
+def get_task_full_benchmark_df(task_path: Path, split: str) -> pd.DataFrame:
+    """Generate full benchmark table for a single task and split.
+
+    Returns DataFrame with columns: Dataset, Metric, Baseline, Loop_0, Loop_1, ...
+    Each row is a dataset-metric combination.
+    """
+    # Collect all sources (Baseline + Loops)
+    sources = ["Baseline"]
+    loop_dirs = sorted(
+        [d for d in task_path.iterdir() if d.is_dir() and d.name.startswith("Loop_")],
+        key=lambda x: int(x.name.split("_")[1])
+    )
+    sources.extend([d.name for d in loop_dirs])
+
+    # Collect all accuracy_summaries
+    all_summaries = {}
+
+    # Baseline
+    baseline_summary = extract_baseline_full_benchmark(task_path, split)
+    if baseline_summary:
+        all_summaries["Baseline"] = baseline_summary
+
+    # Loops
+    for loop_dir in loop_dirs:
+        loop_summary = extract_full_benchmark(loop_dir, split)
+        if loop_summary:
+            all_summaries[loop_dir.name] = loop_summary
+
+    if not all_summaries:
+        return pd.DataFrame()
+
+    # Collect all dataset-metric combinations
+    all_keys = set()
+    for summary in all_summaries.values():
+        for dataset, metrics in summary.items():
+            if isinstance(metrics, dict):
+                for metric in metrics.keys():
+                    all_keys.add((dataset, metric))
+
+    # Sort keys for consistent display
+    all_keys = sorted(all_keys)
+
+    # Build table data
+    data = []
+    for dataset, metric in all_keys:
+        row = {"Dataset": dataset, "Metric": metric}
+        for source in sources:
+            summary = all_summaries.get(source, {})
+            metrics_dict = summary.get(dataset, {})
+            value = metrics_dict.get(metric) if isinstance(metrics_dict, dict) else None
+            if value is not None:
+                row[source] = f"{value:.2f}" if isinstance(value, float) else str(value)
+            else:
+                row[source] = "-"
+        data.append(row)
+
+    df = pd.DataFrame(data)
+    # Ensure column order
+    if not df.empty:
+        cols = ["Dataset", "Metric"] + [s for s in sources if s in df.columns]
+        df = df[cols]
+    return df
+
+
+def render_task_detail_selector(job_path: Path) -> None:
+    """Render task selector dropdown and full benchmark tables."""
+    tasks = [d for d in sorted(job_path.iterdir(), reverse=True) if is_valid_task(d)]
+    if not tasks:
+        return
+
+    st.markdown("---")
+    st.subheader("Detailed Benchmark Scores")
+
+    # Task selector dropdown
+    task_names = [t.name for t in tasks]
+    selected_task = st.selectbox(
+        "Select Task",
+        options=task_names,
+        index=0,
+        key="task_detail_selector"
+    )
+
+    if selected_task:
+        task_path = job_path / selected_task
+
+        # Display Validation and Test tables side by side
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Validation [0:100]**")
+            df_val = get_task_full_benchmark_df(task_path, "validation")
+            if not df_val.empty:
+                st.dataframe(df_val, use_container_width=True, hide_index=True)
+            else:
+                st.info("No validation scores")
+
+        with col2:
+            st.markdown("**Test [100:200]**")
+            df_test = get_task_full_benchmark_df(task_path, "test")
+            if not df_test.empty:
+                st.dataframe(df_test, use_container_width=True, hide_index=True)
+            else:
+                st.info("No test scores")
