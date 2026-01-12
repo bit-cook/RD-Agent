@@ -21,6 +21,7 @@ os.environ["FT_file_path"] = str(_project_root / "git_ignore_folder" / "finetune
 import pandas as pd
 
 from rdagent.components.coder.finetune.conf import get_benchmark_env
+from rdagent.scenarios.finetune.benchmark.benchmark import get_benchmark_ranges
 from rdagent.scenarios.finetune.benchmark.data.adaptor import BENCHMARK_CONFIG_DICT
 from rdagent.scenarios.finetune.benchmark.data.default import extract_error_samples
 
@@ -98,6 +99,7 @@ def generate_api_config(
     dataset_imports: list[str],
     limit: int | None = None,
     offset: int = 0,
+    test_range: str | None = None,
     work_dir: str = "/workspace",
     max_out_len: int = 8192,
     max_seq_len: int = 32768,
@@ -106,20 +108,39 @@ def generate_api_config(
     max_num_workers: int = 16,
     retry: int = 5,
 ) -> str:
-    """Generate OpenCompass config for API-based model evaluation."""
+    """Generate OpenCompass config for API-based model evaluation.
+
+    Args:
+        test_range: Direct test_range expression (e.g., "[:min(100, len(index_list)//2)]").
+                    If provided, overrides limit/offset parameters.
+    """
     # Format dataset imports
     dataset_import_lines = "\n".join(f"    from {module} import *" for module in dataset_imports)
 
-    # Format limit config with offset support
-    if limit:
-        if offset:
-            test_range = f"[{offset}:{offset + limit}]"
-        else:
-            test_range = f"[:{limit}]"
-        limit_config = f"""    # Limit dataset size for faster testing
+    # Format limit config - support direct test_range or limit/offset
+    if test_range:
+        # Use direct test_range expression (supports dynamic expressions like len(index_list))
+        limit_config = f"""    # Apply test_range for dataset sampling
     if 'reader_cfg' not in ds:
         ds['reader_cfg'] = {{}}
     ds['reader_cfg']['test_range'] = '{test_range}'
+
+    # Sync to evaluator's dataset_cfg
+    if 'eval_cfg' in ds and 'evaluator' in ds['eval_cfg']:
+        evaluator = ds['eval_cfg']['evaluator']
+        if isinstance(evaluator, dict) and 'dataset_cfg' in evaluator:
+            if 'reader_cfg' not in evaluator['dataset_cfg']:
+                evaluator['dataset_cfg']['reader_cfg'] = {{}}
+            evaluator['dataset_cfg']['reader_cfg']['test_range'] = '{test_range}'"""
+    elif limit:
+        if offset:
+            computed_range = f"[{offset}:{offset + limit}]"
+        else:
+            computed_range = f"[:{limit}]"
+        limit_config = f"""    # Limit dataset size for faster testing
+    if 'reader_cfg' not in ds:
+        ds['reader_cfg'] = {{}}
+    ds['reader_cfg']['test_range'] = '{computed_range}'
 
     # Limit few-shot examples to avoid index out of range
     # FixKRetriever uses fix_id_list to select examples from train/dev split
@@ -135,7 +156,7 @@ def generate_api_config(
         if isinstance(evaluator, dict) and 'dataset_cfg' in evaluator:
             if 'reader_cfg' not in evaluator['dataset_cfg']:
                 evaluator['dataset_cfg']['reader_cfg'] = {{}}
-            evaluator['dataset_cfg']['reader_cfg']['test_range'] = '{test_range}'"""
+            evaluator['dataset_cfg']['reader_cfg']['test_range'] = '{computed_range}'"""
     else:
         limit_config = ""
 
@@ -162,8 +183,9 @@ def run_benchmark_api(
     api_key: str,
     api_base: str,
     benchmark_name: str,
-    limit: int = 3,
+    limit: int | None = 3,
     offset: int = 0,
+    test_range: str | None = None,
     max_error_samples: int = 5,
     max_out_len: int = 8192,
     max_seq_len: int = 32768,
@@ -183,8 +205,10 @@ def run_benchmark_api(
         api_key: OpenAI API key
         api_base: OpenAI API base URL (will be converted to Docker-accessible URL)
         benchmark_name: Benchmark name
-        limit: Dataset limit
-        offset: Starting offset for dataset sampling (default: 0)
+        limit: Dataset limit (ignored if test_range is provided)
+        offset: Starting offset for dataset sampling (ignored if test_range is provided)
+        test_range: Direct test_range expression (e.g., "[:min(100, len(index_list)//2)]").
+                    If provided, overrides limit/offset parameters.
         max_error_samples: Max error samples to extract
         max_out_len: Maximum output length
         max_seq_len: Maximum sequence length
@@ -218,6 +242,7 @@ def run_benchmark_api(
         dataset_imports=[cfg.dataset],
         limit=limit,
         offset=offset,
+        test_range=test_range,
         work_dir="/workspace",
         max_out_len=max_out_len,
         max_seq_len=max_seq_len,
@@ -313,7 +338,6 @@ if __name__ == "__main__":
     HF_TOKEN = "hf_xxxx"  # For gated datasets
 
     # ==================== Test Configuration ====================
-    LIMIT = 3
     MAX_OUT_LEN = 8192
     MAX_SEQ_LEN = 32768
     BATCH_SIZE = 8
@@ -324,94 +348,165 @@ if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     test_base = _project_root / "git_ignore_folder" / "test_api" / timestamp
 
-    print("=" * 60)
-    print(f"API BENCHMARK TEST: {MODEL} (limit={LIMIT})")
-    print(f"API Base: {API_BASE}")
-    print(f"Output: {test_base}")
-    print("=" * 60)
+    # ==================== Test Mode Selection ====================
+    # Set to True to test get_benchmark_ranges() with validation/test splits
+    TEST_BENCHMARK_RANGES = True
 
-    results_summary = {}
-
-    # Hardcoded benchmark list - comment/uncomment to select benchmarks to test
-    BENCHMARKS_TO_TEST = [
-        # Math Reasoning
-        # "aime24",
-        # "aime25",
-        # "math",
-        # General Knowledge
-        # "mmlu",
-        # Code Generation
-        # "humaneval",
-        # "mbpp",
-        # PANORAMA - Patent Analysis (zero-shot)
-        "panorama",
-        "panorama_par4pc",
-        "panorama_pi4pc",
-        "panorama_noc4pc",
-        # PANORAMA - Patent Analysis (CoT)
-        "panorama_par4pc_cot",
-        "panorama_pi4pc_cot",
-        "panorama_noc4pc_cot",
-        # ChemCoTBench - Chemistry Reasoning
-        "chemcotbench",
-        "chemcotbench_mol_und",
-        "chemcotbench_mol_edit",
-        "chemcotbench_mol_opt",
-        "chemcotbench_reaction",
-        # TableBench - Table QA
-        "tablebench_data_analysis",
-        "tablebench_fact_checking",
-        "tablebench_numerical_reasoning",
-        "tablebench_visualization",
-        "tablebench_gen",
-        # Finance
-        "FinanceIQ_ppl",
-    ]
-
-    for benchmark_name in BENCHMARKS_TO_TEST:
-        print(f"\n{'='*60}")
-        print(f"Running: {benchmark_name}")
+    if TEST_BENCHMARK_RANGES:
+        # Test get_benchmark_ranges() with AIME25 (small dataset, 15 samples per subset)
+        val_range, test_range = get_benchmark_ranges()
+        print("=" * 60)
+        print("TESTING get_benchmark_ranges() NON-OVERLAPPING SPLITS")
+        print("=" * 60)
+        print(f"Validation range: {val_range}")
+        print(f"Test range: {test_range}")
+        print(f"API Base: {API_BASE}")
+        print(f"Output: {test_base}")
         print("=" * 60)
 
-        workspace = test_base / benchmark_name
-        result = run_benchmark_api(
-            workspace_path=str(workspace),
-            model_name=MODEL,
-            api_key=API_KEY,
-            api_base=API_BASE,
-            benchmark_name=benchmark_name,
-            limit=LIMIT,
-            max_error_samples=5,
-            max_out_len=MAX_OUT_LEN,
-            max_seq_len=MAX_SEQ_LEN,
-            batch_size=BATCH_SIZE,
-            query_per_second=QUERY_PER_SECOND,
-            max_num_workers=MAX_NUM_WORKERS,
-            hf_token=HF_TOKEN,
-            offset=100,
-        )
+        # Test with AIME25 - a small dataset (15 samples per subset)
+        BENCHMARK = "aime25"
+        results_summary = {}
 
-        error_samples = result.get("error_samples", [])
-        benchmark_results = result.get("benchmark_results", [])
+        for split_name, split_range in [("validation", val_range), ("test", test_range)]:
+            print(f"\n{'='*60}")
+            print(f"Running: {BENCHMARK} - {split_name} split")
+            print(f"test_range: {split_range}")
+            print("=" * 60)
 
-        # Save result to workspace
-        result_file = workspace / "result.json"
-        with open(result_file, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-        print(f"  Result saved to: {result_file}")
+            workspace = test_base / BENCHMARK / split_name
+            result = run_benchmark_api(
+                workspace_path=str(workspace),
+                model_name=MODEL,
+                api_key=API_KEY,
+                api_base=API_BASE,
+                benchmark_name=BENCHMARK,
+                limit=None,  # Disabled, use test_range instead
+                test_range=split_range,
+                max_error_samples=5,
+                max_out_len=MAX_OUT_LEN,
+                max_seq_len=MAX_SEQ_LEN,
+                batch_size=BATCH_SIZE,
+                query_per_second=QUERY_PER_SECOND,
+                max_num_workers=MAX_NUM_WORKERS,
+                hf_token=HF_TOKEN,
+                result_subdir=split_name,
+            )
 
-        print(f"  Results: {benchmark_results}")
-        print(f"  Error samples: {len(error_samples)}")
-        if error_samples:
-            print(f"  Sample: {error_samples[0]}")
+            error_samples = result.get("error_samples", [])
+            benchmark_results = result.get("benchmark_results", {})
 
-        results_summary[benchmark_name] = {
-            "error_count": len(error_samples),
-            "benchmark_results": benchmark_results,
-        }
+            # Save result to workspace
+            result_file = workspace / "result.json"
+            with open(result_file, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"  Result saved to: {result_file}")
 
-    print("\n" + "=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    for name, info in results_summary.items():
-        print(f"  {name}: errors={info['error_count']}")
+            print(f"  Results: {benchmark_results}")
+            print(f"  Error samples: {len(error_samples)}")
+
+            results_summary[f"{BENCHMARK}_{split_name}"] = {
+                "error_count": len(error_samples),
+                "benchmark_results": benchmark_results,
+            }
+
+        print("\n" + "=" * 60)
+        print("SUMMARY - get_benchmark_ranges() TEST")
+        print("=" * 60)
+        for name, info in results_summary.items():
+            print(f"  {name}: {info['benchmark_results']}")
+
+    else:
+        # Original test mode with fixed limit/offset
+        LIMIT = 3
+        print("=" * 60)
+        print(f"API BENCHMARK TEST: {MODEL} (limit={LIMIT})")
+        print(f"API Base: {API_BASE}")
+        print(f"Output: {test_base}")
+        print("=" * 60)
+
+        results_summary = {}
+
+        # Hardcoded benchmark list - comment/uncomment to select benchmarks to test
+        BENCHMARKS_TO_TEST = [
+            # Math Reasoning
+            # "aime24",
+            # "aime25",
+            # "math",
+            # General Knowledge
+            # "mmlu",
+            # Code Generation
+            # "humaneval",
+            # "mbpp",
+            # PANORAMA - Patent Analysis (zero-shot)
+            "panorama",
+            "panorama_par4pc",
+            "panorama_pi4pc",
+            "panorama_noc4pc",
+            # PANORAMA - Patent Analysis (CoT)
+            "panorama_par4pc_cot",
+            "panorama_pi4pc_cot",
+            "panorama_noc4pc_cot",
+            # ChemCoTBench - Chemistry Reasoning
+            "chemcotbench",
+            "chemcotbench_mol_und",
+            "chemcotbench_mol_edit",
+            "chemcotbench_mol_opt",
+            "chemcotbench_reaction",
+            # TableBench - Table QA
+            "tablebench_data_analysis",
+            "tablebench_fact_checking",
+            "tablebench_numerical_reasoning",
+            "tablebench_visualization",
+            "tablebench_gen",
+            # Finance
+            "FinanceIQ_ppl",
+        ]
+
+        for benchmark_name in BENCHMARKS_TO_TEST:
+            print(f"\n{'='*60}")
+            print(f"Running: {benchmark_name}")
+            print("=" * 60)
+
+            workspace = test_base / benchmark_name
+            result = run_benchmark_api(
+                workspace_path=str(workspace),
+                model_name=MODEL,
+                api_key=API_KEY,
+                api_base=API_BASE,
+                benchmark_name=benchmark_name,
+                limit=LIMIT,
+                max_error_samples=5,
+                max_out_len=MAX_OUT_LEN,
+                max_seq_len=MAX_SEQ_LEN,
+                batch_size=BATCH_SIZE,
+                query_per_second=QUERY_PER_SECOND,
+                max_num_workers=MAX_NUM_WORKERS,
+                hf_token=HF_TOKEN,
+                offset=100,
+            )
+
+            error_samples = result.get("error_samples", [])
+            benchmark_results = result.get("benchmark_results", [])
+
+            # Save result to workspace
+            result_file = workspace / "result.json"
+            with open(result_file, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"  Result saved to: {result_file}")
+
+            print(f"  Results: {benchmark_results}")
+            print(f"  Error samples: {len(error_samples)}")
+            if error_samples:
+                print(f"  Sample: {error_samples[0]}")
+
+            results_summary[benchmark_name] = {
+                "error_count": len(error_samples),
+                "benchmark_results": benchmark_results,
+            }
+
+        print("\n" + "=" * 60)
+        print("SUMMARY")
+        print("=" * 60)
+        for name, info in results_summary.items():
+            print(f"  {name}: errors={info['error_count']}")

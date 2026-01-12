@@ -327,15 +327,18 @@ def run_benchmark(
 def get_benchmark_ranges() -> tuple[str, str]:
     """Get validation and test range strings for benchmark evaluation.
 
-    Uses negative indexing for test set to automatically adapt to varying
-    subset sizes in multi-subset benchmarks (e.g., FinanceIQ_ppl).
+    Uses dynamic expressions that adapt to any dataset size:
+    - For small datasets (<200): splits 50/50 to avoid overlap
+    - For large datasets (>=200): takes 100 samples each
+
+    The expressions use OpenCompass's eval mechanism with index_list variable.
 
     Returns:
-        Tuple of (validation_range, test_range):
-        - validation: "[:100]" (first 100 samples)
-        - test: "[-100:]" (last 100 samples, auto-adapts to subset size)
+        Tuple of (validation_range, test_range) - guaranteed non-overlapping:
+        - validation: first min(100, 50%) samples
+        - test: last min(100, 50%) samples
     """
-    return "[:100]", "[-100:]"
+    return "[:min(100, len(index_list)//2)]", "[-min(100, len(index_list)//2):]"
 
 
 if __name__ == "__main__":
