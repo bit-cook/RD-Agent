@@ -322,30 +322,32 @@ def get_benchmark_env(
         # 0 means no timeout, use 7 days as practical "infinite"
         timeout = FT_RD_SETTING.benchmark_timeout if FT_RD_SETTING.benchmark_timeout > 0 else 86400 * 7
 
+    benchmark_volumes = {}
+    # Setup finetune share folder mount for models
+    (FT_RD_SETTING.file_path / "benchmarks").mkdir(parents=True, exist_ok=True)
+    benchmark_volumes[str((FT_RD_SETTING.file_path / "benchmarks").resolve())] = {
+        "bind": "/benchmarks",
+        "mode": "rw",
+    }
+    # Mount models directory for LoRA base model access (vLLM needs base model config)
+    models_path = FT_RD_SETTING.file_path / "models"
+    if models_path.exists():
+        benchmark_volumes[str(models_path.resolve())] = {"bind": FT_MODEL_PATH, "mode": "ro"}
+    benchmark_volumes.update(extra_volumes)
+
     if conf.env_type == "docker":
         docker_conf = BenchmarkDockerConf()
         docker_conf.running_timeout_period = timeout
-
-        # Setup finetune share folder mount for models
-        benchmark_volumes = {}
-        (FT_RD_SETTING.file_path / "benchmarks").mkdir(parents=True, exist_ok=True)
-        benchmark_volumes[str(FT_RD_SETTING.file_path.resolve())] = {"bind": "/finetune", "mode": "rw"}
-        benchmark_volumes[str((FT_RD_SETTING.file_path / "benchmarks").resolve())] = {
-            "bind": "/benchmarks",
-            "mode": "rw",
-        }
-        # Mount models directory for LoRA base model access (vLLM needs base model config)
-        models_path = FT_RD_SETTING.file_path / "models"
-        if models_path.exists():
-            benchmark_volumes[str(models_path.resolve())] = {"bind": FT_MODEL_PATH, "mode": "ro"}
-
-        benchmark_volumes.update(extra_volumes)
         docker_conf.extra_volumes = benchmark_volumes
 
         env = BenchmarkDockerEnv(conf=docker_conf)
     elif conf.env_type == "conda":
+        # NOTE:
+        # We assume user has the permissions to create the softlink in the target directory.
+        # If we have requirements in the future, we suggest make the target directory configurable in BenchmarkCondaConf.
         conda_conf = BenchmarkCondaConf()
         conda_conf.running_timeout_period = timeout
+        conda_conf.extra_volumes = benchmark_volumes
         env = BenchmarkCondaEnv(conf=conda_conf)  # Auto-installs dependencies if env doesn't exist
     else:
         raise ValueError(f"Unknown env type: {conf.env_type}")
