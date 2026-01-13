@@ -332,10 +332,10 @@ def style_status_cell(val: str, decision: bool | None = None) -> str:
                 pass
 
     if is_numeric:
-        # Use decision for coloring
-        if decision is True:
+        # Use decision for coloring (use == instead of is for numpy.bool_ compatibility)
+        if decision == True:
             return "color: #5cb85c; font-weight: bold"  # Green for accepted
-        elif decision is False:
+        elif decision == False:
             return "color: #d9534f; font-weight: bold"  # Red for rejected
         else:
             return "color: #888"  # Gray for no feedback
