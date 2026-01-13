@@ -40,7 +40,7 @@ from rdagent.scenarios.kaggle.kaggle_crawler import get_metric_direction
 from rdagent.utils.agent.tpl import T
 from rdagent.utils.repo.diff import generate_diff_from_dict
 from rdagent.utils.workflow import wait_retry
-
+import torch
 _COMPONENT_META: Dict[str, Dict[str, Any]] = {
     "DataLoadSpec": {
         "target_name": "Data loader and specification generation",
@@ -1198,12 +1198,12 @@ You help users retrieve relevant knowledge from community discussions and public
         tokenizer = AutoTokenizer.from_pretrained(base_model)
         if not getattr(tokenizer, "pad_token", None):
             tokenizer.pad_token = tokenizer.eos_token
-
+        device = torch.device("cuda:1")
         model = RewardModelInference(
             base_model_name=base_model,
             adapter_path=adapter_path,
-            reward_head_path=reward_head_path,
-        ).to("cuda")
+            reward_head_path=reward_head_path,device=device
+        )
         model.eval()
 
         parent_nodes = {}
