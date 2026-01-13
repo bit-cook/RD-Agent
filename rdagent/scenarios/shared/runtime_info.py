@@ -19,13 +19,32 @@ def get_gpu_info():
         import torch
 
         if torch.cuda.is_available():
-            gpu_info["source"] = "pytorch"
-            gpu_info["cuda_version"] = torch.version.cuda
-            gpu_info["gpu_device"] = torch.cuda.get_device_name(0)
-            gpu_info["total_gpu_memory_gb"] = round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 2)
-            gpu_info["allocated_memory_gb"] = round(torch.cuda.memory_allocated(0) / 1024**3, 2)
-            gpu_info["cached_memory_gb"] = round(torch.cuda.memory_reserved(0) / 1024**3, 2)
-            gpu_info["gpu_count"] = torch.cuda.device_count()
+            print("\n=== GPU Info (via PyTorch) ===")
+            print(f"CUDA Version: {torch.version.cuda}")
+            print(f"GPU Count: {torch.cuda.device_count()}")
+            if torch.cuda.device_count() > 0:
+                gpu_name_list = []
+                gpu_total_mem_list = []
+                gpu_allocated_mem_list = []
+                gpu_cached_mem_list = []
+
+                for i in range(torch.cuda.device_count()):
+                    gpu_name_list.append(torch.cuda.get_device_name(i))
+                    gpu_total_mem_list.append(torch.cuda.get_device_properties(i).total_memory)
+                    gpu_allocated_mem_list.append(torch.cuda.memory_allocated(i))
+                    gpu_cached_mem_list.append(torch.cuda.memory_reserved(i))
+
+                for i in range(torch.cuda.device_count()):
+                    print(f"  - GPU {i}: {gpu_name_list[i]}")
+                    print(f"    Total Memory: {gpu_total_mem_list[i] / 1024**3:.2f} GB")
+                    print(f"    Allocated Memory: {gpu_allocated_mem_list[i] / 1024**3:.2f} GB")
+                    print(f"    Cached Memory: {gpu_cached_mem_list[i] / 1024**3:.2f} GB")
+                print("  - All GPUs Summary:")
+                print(f"    Total Memory: {sum(gpu_total_mem_list) / 1024**3:.2f} GB")
+                print(f"    Total Allocated Memory: {sum(gpu_allocated_mem_list) / 1024**3:.2f} GB")
+                print(f"    Total Cached Memory: {sum(gpu_cached_mem_list) / 1024**3:.2f} GB")
+            else:
+                print("No CUDA GPU detected (PyTorch)!")
         else:
             gpu_info["source"] = "pytorch"
             gpu_info["message"] = "No CUDA GPU detected"
