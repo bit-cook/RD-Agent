@@ -57,7 +57,7 @@ class LLMFinetuneScen(DataScienceScen):
 
         # NOTE: we disable the cache for environment. in case of changing cuda config
         self.device_info = get_runtime_environment_by_env(get_ft_env(enable_cache=False))
-        self.gpu_count = self._get_gpu_count()
+        self.gpu_count = json.loads(self.device_info).get("gpu_count", 0)
         self.model_info = FinetuneDatasetDescriptor().describe_model(self.base_model)
 
         # Initialize memory estimator
@@ -70,14 +70,6 @@ class LLMFinetuneScen(DataScienceScen):
         self.baseline_benchmark_score = baseline_result.get("benchmark", {})
         # Test score is for frontend display only
         self.baseline_benchmark_score_test = baseline_result.get("benchmark_test", {})
-
-    def _get_gpu_count(self) -> int:
-        """Return GPU count parsed from device_info stored at initialization."""
-        gpu_info = json.loads(self.device_info).get("gpu", {})
-        if gpu_info.get("source") == "pytorch":
-            return gpu_info.get("gpu_count", 0)
-        elif "gpus" in gpu_info:
-            return len(gpu_info["gpus"])
 
     def benchmark_hash(self, model_name, benchmark_name) -> str:
         return f"llm_finetune_baseline_eval_{model_name}_{benchmark_name}"
@@ -113,8 +105,8 @@ class LLMFinetuneScen(DataScienceScen):
             result_subdir="test",
         )
         return {
-            "benchmark": validation_result,      # Agent sees this
-            "benchmark_test": test_result,       # Agent does NOT see this
+            "benchmark": validation_result,  # Agent sees this
+            "benchmark_test": test_result,  # Agent does NOT see this
         }
 
     def real_full_timeout(self):
@@ -133,10 +125,10 @@ class LLMFinetuneScen(DataScienceScen):
                 num_gpus = gpu_info.get("gpu_count")
                 gpu_mem = gpu_info.get("total_gpu_memory_gb")
             else:
-                # nvidia-smi format: has gpus array with memory_total_mb
+                # nvidia-smi format: has gpus array with memory_total_gb
                 gpus = gpu_info.get("gpus", [])
                 num_gpus = len(gpus) if gpus else None
-                gpu_mem = gpus[0].get("memory_total_mb", 0) / 1024 if gpus else None  # MB -> GB
+                gpu_mem = gpus[0].get("memory_total_gb", 0) if gpus else None
 
             # Skip if GPU info not available
             if not num_gpus or not gpu_mem:
