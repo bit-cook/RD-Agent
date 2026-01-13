@@ -74,6 +74,8 @@ template: |-
             ),
     {% if enable_thinking %}
             chat_template_kwargs=dict(enable_thinking=True),
+    {% endif %}
+    {% if enable_thinking or use_cot_postprocessor %}
             pred_postprocessor=dict(type='extract-non-reasoning-content'),
     {% endif %}
             run_cfg=dict(
