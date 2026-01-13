@@ -248,8 +248,7 @@ def render_scenario(content: Any) -> None:
             gpus = gpu_info.get("gpus", [])
             if gpus:
                 gpu_name = gpus[0].get("name", "Unknown")
-                gpu_mem = gpus[0].get("memory_total_mb", 0)
-                gpu_mem_gb = gpu_mem // 1024 if gpu_mem else 0
+                gpu_mem_gb = gpus[0].get("memory_total_gb", 0)
                 if len(gpus) > 1:
                     parts.append(f"🎮 {len(gpus)}x {gpu_name} ({gpu_mem_gb}GB)")
                 else:

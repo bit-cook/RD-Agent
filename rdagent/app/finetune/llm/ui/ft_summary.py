@@ -140,9 +140,7 @@ def extract_baseline_scores(task_path: Path) -> dict[str, tuple[str, float, bool
     return {"validation": None, "test": None}
 
 
-def get_loop_status(
-    task_path: Path, loop_id: int
-) -> tuple[str, float | None, float | None, str | None, bool | None]:
+def get_loop_status(task_path: Path, loop_id: int) -> tuple[str, float | None, float | None, str | None, bool | None]:
     """
     Get loop status, validation score, test score, metric name with direction arrow, and feedback decision
     Returns: (status_str, val_score_or_none, test_score_or_none, metric_display_or_none, feedback_decision)
@@ -350,6 +348,7 @@ def style_df_with_decisions(df: pd.DataFrame, decisions_df: pd.DataFrame) -> pd.
         df: Display dataframe
         decisions_df: DataFrame with same shape, containing True/False/None values
     """
+
     def apply_styles(row_idx: int, col: str) -> str:
         val = df.iloc[row_idx][col]
         decision = decisions_df.iloc[row_idx][col] if col in decisions_df.columns else None
@@ -400,9 +399,7 @@ def render_job_summary(job_path: Path, is_root: bool = False) -> None:
     with col3:
         # Count tasks with at least one improved loop (decision=True)
         loop_cols = [c for c in decisions_df.columns if c.startswith("L")]
-        tasks_improved = decisions_df[loop_cols].apply(
-            lambda row: any(v is True for v in row), axis=1
-        ).sum()
+        tasks_improved = decisions_df[loop_cols].apply(lambda row: any(v is True for v in row), axis=1).sum()
         st.metric("Improved", tasks_improved)
 
     # Detailed scores table
@@ -480,7 +477,7 @@ def get_task_full_benchmark_df(task_path: Path, split: str) -> pd.DataFrame:
     sources = ["Baseline"]
     loop_dirs = sorted(
         [d for d in task_path.iterdir() if d.is_dir() and d.name.startswith("Loop_")],
-        key=lambda x: int(x.name.split("_")[1])
+        key=lambda x: int(x.name.split("_")[1]),
     )
     sources.extend([d.name for d in loop_dirs])
 
@@ -545,12 +542,7 @@ def render_task_detail_selector(job_path: Path) -> None:
 
     # Task selector dropdown
     task_names = [t.name for t in tasks]
-    selected_task = st.selectbox(
-        "Select Task",
-        options=task_names,
-        index=0,
-        key="task_detail_selector"
-    )
+    selected_task = st.selectbox("Select Task", options=task_names, index=0, key="task_detail_selector")
 
     if selected_task:
         task_path = job_path / selected_task
