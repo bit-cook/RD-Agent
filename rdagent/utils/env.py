@@ -151,6 +151,7 @@ def pull_image_with_progress(image: str) -> None:
 
 class EnvConf(ExtendedBaseSettings):
     default_entry: str
+    env_dict: dict = {}
     extra_volumes: dict = {}
     running_timeout_period: int | None = 3600  # 10 minutes
 
@@ -381,6 +382,11 @@ class Env(Generic[ASpecificEnvConf]):
         -------
             EnvResult: An object containing the stdout, the exit code, and the running time in seconds.
         """
+        _env = self.conf.env_dict.copy()
+        if env:
+            _env.update(env)
+        env = _env
+
         if entry is None:
             entry = self.conf.default_entry
 
@@ -970,6 +976,7 @@ class BenchmarkCondaConf(CondaConf):
     conda_env_name: str = "opencompass"
     default_entry: str = "opencompass --help"
     enable_cache: bool = False
+    env_dict: dict = {"COMPASS_DATA_CACHE": "/benchmarks/opencompass_data"}
 
 
 class BenchmarkCondaEnv(LocalEnv[BenchmarkCondaConf]):
@@ -1139,6 +1146,7 @@ class BenchmarkDockerConf(DockerConf):
     terminal_tail_lines: int = 50  # Show more lines for benchmark progress
 
     network: str | None = "host"  # Use host network for benchmark access to litellm proxy
+    env_dict: dict = {"COMPASS_DATA_CACHE": "/benchmarks/opencompass_data"}
 
 
 # physionet.org/files/mimic-eicu-fiddle-feature/1.0.0/FIDDLE_mimic3
