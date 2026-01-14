@@ -84,6 +84,8 @@ class FTPathConfig:
     @property
     def is_docker(self) -> bool:
         """Check if current environment is Docker-based."""
+        # FIXME: the env should work in same way for docker and conda env.
+        # We should not expose the env type everywhere.
         return FTCoderCoSTEERSettings().env_type == "docker"
 
     @property
@@ -325,10 +327,13 @@ def get_benchmark_env(
     benchmark_volumes = {}
     # Setup finetune share folder mount for models
     (FT_RD_SETTING.file_path / "benchmarks").mkdir(parents=True, exist_ok=True)
+    # NOTE: we choose a folder in the workspace as the mount point due to we may run multiple instances in same 
+    # host machine. If conda env is used, the mount point will conflict with each other.
     benchmark_volumes[str((FT_RD_SETTING.file_path / "benchmarks").resolve())] = {
-        "bind": "/benchmarks",
+        "bind": "./benchmarks",
         "mode": "rw",
     }
+    env_dict = {"COMPASS_DATA_CACHE": "./benchmarks/opencompass_data"}
     # Mount models directory for LoRA base model access (vLLM needs base model config)
     models_path = FT_RD_SETTING.file_path / "models"
     if models_path.exists():
@@ -339,7 +344,7 @@ def get_benchmark_env(
         docker_conf = BenchmarkDockerConf()
         docker_conf.running_timeout_period = timeout
         docker_conf.extra_volumes = benchmark_volumes
-
+        docker_conf.env_dict = env_dict
         env = BenchmarkDockerEnv(conf=docker_conf)
     elif conf.env_type == "conda":
         # NOTE:
@@ -348,6 +353,7 @@ def get_benchmark_env(
         conda_conf = BenchmarkCondaConf()
         conda_conf.running_timeout_period = timeout
         conda_conf.extra_volumes = benchmark_volumes
+        conda_conf.env_dict = env_dict
         env = BenchmarkCondaEnv(conf=conda_conf)  # Auto-installs dependencies if env doesn't exist
     else:
         raise ValueError(f"Unknown env type: {conf.env_type}")
