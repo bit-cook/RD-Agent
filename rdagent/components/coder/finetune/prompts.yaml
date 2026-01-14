@@ -378,10 +378,11 @@ finetune_coder:
     {% if has_think_token is defined and not has_think_token %}
     ## Special Token Configuration for CoT Training
     The base model does NOT have `<think>` token in its vocabulary.
-    To train with Chain-of-Thought reasoning format (output like `<think>reasoning</think>answer`), you MUST add special tokens:
+    To train with Chain-of-Thought reasoning format (output like `<think>reasoning</think>answer`), you MUST add special tokens AND train the new embeddings:
     ```yaml
     new_special_tokens: ["<think>", "</think>"]
     resize_vocab: true
+    additional_target: embed_tokens,lm_head  # MANDATORY for LoRA/QLoRA when resize_vocab=true! And Full Training does not need this field.
     ```
     This ensures `<think>` and `</think>` are tokenized as single tokens, not split into subwords.
     {% elif has_think_token is defined and has_think_token %}
