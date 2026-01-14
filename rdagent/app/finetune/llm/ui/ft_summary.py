@@ -140,17 +140,18 @@ def extract_baseline_scores(task_path: Path) -> dict[str, tuple[str, float, bool
     return {"validation": None, "test": None}
 
 
-def get_loop_status(task_path: Path, loop_id: int) -> tuple[str, float | None, float | None, str | None, bool | None]:
+def get_loop_status(task_path: Path, loop_id: int) -> tuple[str, float | None, float | None, str | None, bool | None, bool]:
     """
-    Get loop status, validation score, test score, metric name with direction arrow, and feedback decision
-    Returns: (status_str, val_score_or_none, test_score_or_none, metric_display_or_none, feedback_decision)
+    Get loop status, validation score, test score, metric name with direction arrow, feedback decision, and direction.
+    Returns: (status_str, val_score_or_none, test_score_or_none, metric_display_or_none, feedback_decision, higher_is_better)
     Status: 'C'=Coding, 'R'=Running, 'X'=Failed, score_str=Success
     metric_display: metric name with direction arrow (e.g., "accuracy ↑")
     feedback_decision: True=accepted, False=rejected, None=no feedback
+    higher_is_better: True if higher values are better for this metric
     """
     loop_path = task_path / f"Loop_{loop_id}"
     if not loop_path.exists():
-        return "-", None, None, None, None
+        return "-", None, None, None, None, True
 
     # Check for benchmark results first (highest priority - means completed)
     scores = extract_benchmark_scores(loop_path)
@@ -187,24 +188,24 @@ def get_loop_status(task_path: Path, loop_id: int) -> tuple[str, float | None, f
             status_str = f"{val_score:.1f}/{test_score:.1f}"
         else:
             status_str = f"{val_score:.1f}"
-        return status_str, val_score, test_score, metric_display, feedback_decision
+        return status_str, val_score, test_score, metric_display, feedback_decision, higher_is_better
 
     # Check feedback stage (no benchmark result, use feedback decision directly)
     if feedback_decision is not None:
-        return ("OK" if feedback_decision else "X"), None, None, None, feedback_decision
+        return ("OK" if feedback_decision else "X"), None, None, None, feedback_decision, True
 
     # Check running stage
     running_files = list(loop_path.rglob("**/running/**/*.pkl"))
     if running_files:
-        return "R", None, None, None, None
+        return "R", None, None, None, None, True
 
     # Check coding stage
     coding_files = list(loop_path.rglob("**/coding/**/*.pkl"))
     if coding_files:
-        return "C", None, None, None, None
+        return "C", None, None, None, None, True
 
     # Has directory but no recognized files
-    return "?", None, None, None, None
+    return "?", None, None, None, None, True
 
 
 def get_max_loops(job_path: Path) -> int:
@@ -246,6 +247,7 @@ def get_job_summary_df(job_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         best_val_score = None
         best_test_score = None
         best_metric = None
+        best_higher_is_better = True  # Default to higher is better
 
         # Extract baseline scores (validation and test) from scenario
         baseline_scores = extract_baseline_scores(task_path)
@@ -260,15 +262,26 @@ def get_job_summary_df(job_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         decision_row["Baseline"] = None
 
         for i in range(max_loops):
-            status, val_score, test_score, metric_name, feedback_decision = get_loop_status(task_path, i)
+            status, val_score, test_score, metric_name, feedback_decision, higher_is_better = get_loop_status(task_path, i)
             row[f"L{i}"] = status
             decision_row[f"L{i}"] = feedback_decision
             if val_score is not None:
-                if best_val_score is None or val_score > best_val_score:
+                # Use higher_is_better to determine if this score is better
+                if best_val_score is None:
                     best_val_score = val_score
+                    best_higher_is_better = higher_is_better
+                    best_metric = metric_name
+                elif (higher_is_better and val_score > best_val_score) or \
+                     (not higher_is_better and val_score < best_val_score):
+                    best_val_score = val_score
+                    best_higher_is_better = higher_is_better
                     best_metric = metric_name
             if test_score is not None:
-                if best_test_score is None or test_score > best_test_score:
+                # Use same direction as validation score for consistency
+                if best_test_score is None:
+                    best_test_score = test_score
+                elif (best_higher_is_better and test_score > best_test_score) or \
+                     (not best_higher_is_better and test_score < best_test_score):
                     best_test_score = test_score
 
         # Show best validation and test scores
