@@ -12,23 +12,33 @@ from rdagent.app.data_science.conf import DS_RD_SETTING
 # Reward Model Wrapper
 # =====================
 class RewardModelInference(nn.Module):
-    def __init__(self, base_model_name, adapter_path, reward_head_path, device="cuda"):
+    def __init__(self, base_model_name, adapter_path, reward_head_path, device="cuda:1"):
         super().__init__()
-        self.device = device
+        self.device = torch.device(device)
+
         self.base = AutoModelForCausalLM.from_pretrained(base_model_name)
         self.base = PeftModel.from_pretrained(self.base, adapter_path)
+        self.base.to(self.device)
+
         if hasattr(self.base, "gradient_checkpointing_enable"):
             self.base.gradient_checkpointing_enable()
         if hasattr(self.base.config, "use_cache"):
             self.base.config.use_cache = False
-        hs = getattr(self.base.config, "hidden_size",
-                     getattr(self.base.config, "n_embd",
-                     getattr(self.base.config, "d_model", None)))
+
+        hs = getattr(
+            self.base.config,
+            "hidden_size",
+            getattr(self.base.config, "n_embd",
+            getattr(self.base.config, "d_model", None))
+        )
         if hs is None:
             hs = self.base.get_input_embeddings().embedding_dim
 
-        self.reward_head = nn.Linear(hs, 1).to(device)
-        self.reward_head.load_state_dict(torch.load(reward_head_path, map_location=device))
+        self.reward_head = nn.Linear(hs, 1)
+        self.reward_head.load_state_dict(
+            torch.load(reward_head_path, map_location="cpu")
+        )
+        self.reward_head.to(self.device)
 
     @staticmethod
     def pool_last_nonpad(last_hidden: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
