@@ -270,6 +270,7 @@ def run_benchmark(
                 "stdout": (result.stdout or ""),
                 "benchmark_name": benchmark_name,
                 "model_path": str(model_path),
+                "workspace_path": str(workspace_path),
             },
             tag=f"{tag_prefix}.Benchmark",
         )
