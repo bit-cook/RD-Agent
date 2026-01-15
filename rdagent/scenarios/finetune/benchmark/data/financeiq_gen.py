@@ -55,9 +55,9 @@ def download_financeiq_dataset() -> None:
 def extract_error_samples(results_base: Path, max_samples: int = 10) -> List[Dict[str, Any]]:
     """
     (Deprecated, processed by unified logic now)
-    Extract error samples specifically for FinanceIQ_ppl benchmark.
+    Extract error samples specifically for FinanceIQ_gen benchmark.
 
-    FinanceIQ_ppl result files (per subject) look like:
+    FinanceIQ_gen result files (per subject) look like:
 
         {
             "accuracy": 60.0,
@@ -88,10 +88,10 @@ def extract_error_samples(results_base: Path, max_samples: int = 10) -> List[Dic
         - model_output: The model's actual output (predictions)
     """
     error_samples: List[Dict[str, Any]] = []
-    results_dir = results_base / "results" / "ft-FinanceIQ_ppl"
+    results_dir = results_base / "results" / "ft-FinanceIQ_gen"
 
     if not results_dir.exists():
-        logger.warning(f"FinanceIQ_ppl results directory not found: {results_dir}")
+        logger.warning(f"FinanceIQ_gen results directory not found: {results_dir}")
         return error_samples
 
     # Iterate through all FinanceIQ subject JSON files
@@ -137,12 +137,12 @@ def extract_error_samples(results_base: Path, max_samples: int = 10) -> List[Dic
             )
 
     if not error_samples:
-        logger.info("No FinanceIQ_ppl error samples found")
+        logger.info("No FinanceIQ_gen error samples found")
         return error_samples
 
     # Random sampling if too many error samples
     if len(error_samples) > max_samples:
         error_samples = random.sample(error_samples, max_samples)
 
-    logger.info(f"Extracted {len(error_samples)} FinanceIQ_ppl error samples from {results_dir}")
+    logger.info(f"Extracted {len(error_samples)} FinanceIQ_gen error samples from {results_dir}")
     return error_samples

@@ -99,10 +99,10 @@
     "benchmark_description": "TableBench General - Comprehensive table QA covering fact checking, numerical reasoning, data analysis, and visualization. Questions require understanding table structure, extracting relevant data, performing reasoning or computation, and generating accurate answers or code. Expected Output Format: End response with \"Final Answer: <answer>\"."
   },
 
-  "FinanceIQ_ppl": {
+  "FinanceIQ_gen": {
     "category": "finance",
     "scenario": "Improve the model's financial domain knowledge across accounting, auditing, economics, corporate finance, insurance, securities, and tax through multiple-choice question answering with conceptual understanding and practical application.",
-    "benchmark_description": "FinanceIQ tests financial domain knowledge through multiple-choice questions (A/B/C/D). Covers 10 Chinese financial certification exams: CPA (注册会计师), banking qualification, securities qualification, fund qualification, futures qualification, insurance qualification, tax advisor, asset appraiser, economist, and auditor. Uses probability scoring: model assigns probability to each option, highest probability option is selected as answer. Evaluation metric: accuracy. Uses 5-shot in-context learning examples. Expected Output Format: Select the option (A/B/C/D) with highest probability score."
+    "benchmark_description": "FinanceIQ tests financial domain knowledge through multiple-choice questions (A/B/C/D). Covers 10 Chinese financial certification exams: CPA (注册会计师), banking qualification, securities qualification, fund qualification, futures qualification, insurance qualification, tax advisor, asset appraiser, economist, and auditor. Uses generative inference with 5-shot in-context learning examples. Evaluation metric: accuracy. Expected Output Format: Put the answer option in double brackets, e.g., [[A]], [[B]], [[C]], or [[D]]."
   },
 
   "bioprobench_gen": {

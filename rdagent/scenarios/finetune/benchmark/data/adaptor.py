@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Dict, Optional
 
-from rdagent.scenarios.finetune.benchmark.data import financeiq_ppl
+from rdagent.scenarios.finetune.benchmark.data import financeiq_gen
 
 DownloadFunc = Callable[[], None]
 
@@ -122,8 +122,8 @@ BENCHMARK_CONFIG_DICT: Dict[str, BenchmarkConfig] = {
         dataset="opencompass.configs.datasets.bioprobench.bioprobench_pqa",
     ),
     # Native OpenCompass benchmarks
-    "FinanceIQ_ppl": BenchmarkConfig(
+    "FinanceIQ_gen": BenchmarkConfig(
         dataset="opencompass.configs.datasets.FinanceIQ.FinanceIQ_gen_e0e6b5",
-        download=financeiq_ppl.download_financeiq_dataset,
+        download=financeiq_gen.download_financeiq_dataset,
     ),
 }

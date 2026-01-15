@@ -460,7 +460,7 @@ if __name__ == "__main__":
             "tablebench_visualization",
             "tablebench_gen",
             # Finance
-            "FinanceIQ_ppl",
+            "FinanceIQ_gen",
         ]
 
         for benchmark_name in BENCHMARKS_TO_TEST:
