@@ -16,10 +16,13 @@ REMOTE_BASE="FinetuneAgenticLLM/FT_qizheng"
 # Default to project-relative paths; can be overridden by environment variables
 LOCAL_LOG_DIR="${FT_LOG_BASE:-$PROJECT_ROOT/log}"
 LOCAL_WORKSPACE_DIR="${FT_WORKSPACE_BASE:-$PROJECT_ROOT/git_ignore_folder/RD-Agent_workspace}"
+LOCAL_LITELLM_LOG_DIR="${LITELLM_LOG_DIR:-/workspace/rdagent/litllm_log}"
 # Support sub-path for syncing specific job directory (e.g., SYNC_SUBPATH="2024-01-01_12-00")
 SYNC_SUBPATH="${SYNC_SUBPATH:-}"
 REMOTE_LOG_PATH="${REMOTE_BASE}/logs${SYNC_SUBPATH:+/$SYNC_SUBPATH}"
 REMOTE_WORKSPACE_PATH="${REMOTE_BASE}/workspace${SYNC_SUBPATH:+/$SYNC_SUBPATH}"
+# litellm_log doesn't use SYNC_SUBPATH since local dir is shared across jobs
+REMOTE_LITELLM_LOG_PATH="${REMOTE_BASE}/litellm_log"
 
 # Read SAS Token
 if [ -f "$TOKEN_FILE" ]; then
@@ -29,7 +32,7 @@ else
 fi
 # ========== End Configuration ==========
 
-# Get paths based on sync type (logs/workspace)
+# Get paths based on sync type (logs/workspace/litellm_log)
 get_paths() {
     local sync_type="${1:-logs}"
     case "$sync_type" in
@@ -41,8 +44,12 @@ get_paths() {
             LOCAL_DIR="$LOCAL_WORKSPACE_DIR"
             REMOTE_PATH="$REMOTE_WORKSPACE_PATH"
             ;;
+        litellm_log)
+            LOCAL_DIR="$LOCAL_LITELLM_LOG_DIR"
+            REMOTE_PATH="$REMOTE_LITELLM_LOG_PATH"
+            ;;
         *)
-            echo "Error: Unknown sync type '$sync_type'. Use 'logs' or 'workspace'."
+            echo "Error: Unknown sync type '$sync_type'. Use 'logs', 'workspace', or 'litellm_log'."
             exit 1
             ;;
     esac
@@ -50,20 +57,22 @@ get_paths() {
 }
 
 usage() {
-    echo "Usage: $0 [up|down] [logs|workspace]"
+    echo "Usage: $0 [up|down] [logs|workspace|litellm_log]"
     echo ""
     echo "  up    Upload local directory to blob"
     echo "  down  Download blob to local directory"
     echo "  (no args) Show this help"
     echo ""
     echo "Sync types:"
-    echo "  logs      Sync log directory (default)"
-    echo "  workspace Sync workspace directory"
+    echo "  logs        Sync log directory (default)"
+    echo "  workspace   Sync workspace directory"
+    echo "  litellm_log Sync litellm log directory"
     echo ""
     echo "Configuration:"
-    echo "  Log directory:       $LOCAL_LOG_DIR"
-    echo "  Workspace directory: $LOCAL_WORKSPACE_DIR"
-    echo "  Remote base:         $REMOTE_BASE"
+    echo "  Log directory:         $LOCAL_LOG_DIR"
+    echo "  Workspace directory:   $LOCAL_WORKSPACE_DIR"
+    echo "  Litellm log directory: $LOCAL_LITELLM_LOG_DIR"
+    echo "  Remote base:           $REMOTE_BASE"
     echo ""
     echo "SAS Token: Run ./gen_token.sh to generate"
     exit 0

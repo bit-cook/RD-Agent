@@ -109,14 +109,16 @@ for ((i=0; i<NUM_TASKS; i++)); do
     mkdir -p "$task_workspace"
     LOG_FILE="$JOB_DIR/${task_name}.log"
 
-    # Create tmux window for this task (use benchmark name only)
-    tmux new-window -t "$TMUX_SESSION" -n "$benchmark"
+    # Create tmux window for this task and get its full target (e.g., rdagent:1.0)
+    # Use "session:" format to ensure window is created in the correct session
+    WIN_TARGET=$(tmux new-window -t "$TMUX_SESSION:" -n "$benchmark" -P)
 
     # Build the command with environment setup
     timeout_arg=""
     [[ -n "$task_timeout" ]] && timeout_arg="--timeout $task_timeout"
 
-    TASK_CMD="set -a && source '$ENV_FILE' && set +a"
+    TASK_CMD="source ~/miniconda3/etc/profile.d/conda.sh && conda activate qz_rdagent"
+    TASK_CMD="$TASK_CMD && set -a && source '$ENV_FILE' && set +a"
     TASK_CMD="$TASK_CMD && export CUDA_VISIBLE_DEVICES='$gpus'"
     TASK_CMD="$TASK_CMD && export LOG_TRACE_PATH='$trace_path'"
     TASK_CMD="$TASK_CMD && export WORKSPACE_PATH='$task_workspace'"
@@ -126,8 +128,8 @@ for ((i=0; i<NUM_TASKS; i++)); do
     TASK_CMD="$TASK_CMD && cd '$RDAGENT_DIR'"
     TASK_CMD="$TASK_CMD && python rdagent/app/finetune/llm/loop.py --base-model '$model' $timeout_arg"
 
-    # Run with script -c to capture terminal output (including colors)
-    tmux send-keys -t "$TMUX_SESSION:$benchmark" "script -q -f '$LOG_FILE' -c \"$TASK_CMD\"" Enter
+    # Run with script -c to capture terminal output (using full target for reliability)
+    tmux send-keys -t "$WIN_TARGET" "script -q -f '$LOG_FILE' -c \"$TASK_CMD\"" Enter
 
     echo "  Window:    $benchmark"
     echo ""
