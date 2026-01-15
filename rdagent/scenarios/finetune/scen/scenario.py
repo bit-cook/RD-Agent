@@ -121,9 +121,9 @@ class LLMFinetuneScen(DataScienceScen):
 
             # Extract GPU info based on source
             if gpu_info.get("source") == "pytorch":
-                # PyTorch format: has gpu_count and total_gpu_memory_gb directly
+                # PyTorch format: gpu_count at top level, total_memory_gb in summary
                 num_gpus = gpu_info.get("gpu_count")
-                gpu_mem = gpu_info.get("total_gpu_memory_gb")
+                gpu_mem = gpu_info.get("summary", {}).get("total_memory_gb")
             else:
                 # nvidia-smi format: has gpus array with memory_total_gb
                 gpus = gpu_info.get("gpus", [])
