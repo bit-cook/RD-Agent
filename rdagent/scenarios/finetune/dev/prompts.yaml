@@ -70,6 +70,16 @@ exp_feedback:
     - Learning rate appropriateness based on loss curve shape
     - Suggest hyperparameter-level adjustments (learning rate, batch size, epochs), NOT data-level changes
 
+    # COT Output Understanding Guidelines
+    {% if force_think_token %}
+    **IMPORTANT**: If model output contains `<think>...</think>` tags, this is NORMAL and EXPECTED.
+
+    - During benchmark evaluation, a postprocessor REMOVES `<think>...</think>` content
+    - The evaluator ONLY sees content AFTER `</think>`
+    - Having `<think>` tags is correct CoT training behavior, NOT an error
+    {% endif %}
+    {# When force_think_token=false, model output won't have <think> tags, no special explanation needed #}
+
     # Error Sample Analysis Guidelines (CRITICAL - Avoid Benchmark Leakage)
     You will receive model outputs for incorrectly answered questions.
     **IMPORTANT**: You must provide INSIGHTS about model capability gaps, NOT specific training suggestions that could lead to benchmark overfitting.

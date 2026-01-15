@@ -168,6 +168,7 @@ class FTDataEvaluator(CoSTEEREvaluator):
             scenario=self.scen.get_scenario_all_desc(),
             queried_similar_successful_knowledge=queried_similar_successful_knowledge,
             upper_data_size_limit=FT_RD_SETTING.upper_data_size_limit,
+            force_think_token=FT_RD_SETTING.force_think_token,
         )
         user_prompt = T(".prompts:data_eval.user").r(
             task_desc=target_task.get_task_information(),

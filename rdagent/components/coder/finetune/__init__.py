@@ -123,6 +123,7 @@ class LLMFinetuneEvolvingStrategy(MultiProcessEvolvingStrategy):
             api_max_workers=FT_RD_SETTING.api_max_workers,
             datasets_path=FT_PATHS.datasets,
             workspace_path=FT_PATHS.workspace,
+            force_think_token=FT_RD_SETTING.force_think_token,
         )
 
         user_prompt = T(".prompts:data_coder.user").r(
@@ -330,6 +331,7 @@ class LLMFinetuneEvolvingStrategy(MultiProcessEvolvingStrategy):
             deepspeed_path=FT_PATHS.deepspeed,
             data_stats=data_stats,
             has_think_token=self.scen.model_info.get("has_think_token", False),
+            force_think_token=FT_RD_SETTING.force_think_token,
         )
 
         # Call LLM to generate config (multi-turn)

@@ -109,6 +109,7 @@ class LLMFinetuneExpGen(ExpGen):
             shared_params=shared_params,
             methods_specific_params=methods_specific_params,
             select_model=base_model is None,
+            force_think_token=FT_RD_SETTING.force_think_token,
         )
 
         user_prompt = T(".prompts:unified_hypothesis_gen.user_prompt").r(

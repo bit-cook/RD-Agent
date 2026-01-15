@@ -185,50 +185,37 @@ data_coder:
     ```
 
     # Part 6: CoT Processing Guide (CRITICAL)
-
-    ## 6.1 CoT Output Requirement (MANDATORY for ALL Tasks)
+    ## 6.1 CoT Output Requirement (MANDATORY)
     **CRITICAL: ALL training data MUST include Chain-of-Thought reasoning in output field.**
 
     ### Why This Matters
     - Models learn to reason by seeing reasoning examples
     - Direct answers (A/B/C/D, True/False) provide NO training signal for reasoning
-    - Even MCQ/simple tasks benefit from step-by-step explanation
 
-    ### Two-Step Generation Process (REQUIRED)
-
-    **Step 1 - LLM Generation (get reasoning):**
+    ### Generation Process
     - Ask LLM to provide step-by-step reasoning before the final answer
-    - DO NOT ask for `<think>` tags in prompts (models refuse this)
     - Good: "Explain your reasoning step by step, then give the final answer"
     - Bad: "Output with <think> tags" (models will refuse)
+    - Let LLM generate reasoning naturally
 
-    **Step 2 - Code Wrapping (add format):**
+    ### Output Format
+    {% if force_think_token %}
     - Your script MUST wrap LLM output into `<think>...</think>` format
-    - Extract reasoning and answer from LLM response
-    - Format: `<think>{reasoning}</think>{original_answer_format}`
-    - The answer format AFTER `</think>` must match the original data format
-
-    ### Example Implementation
-    ```python
-    def process_sample(question, options, correct_answer):
-        # Step 1: Get reasoning from LLM (no <think> in prompt!)
-        prompt = f"Question: {question}\nOptions: {options}\nThink step by step, then give the answer."
-        llm_response = call_llm(prompt)  # e.g., "First... Therefore... The answer is A"
-
-        # Step 2: Code wraps into <think> format
-        reasoning, _ = extract_reasoning(llm_response)  # Extract reasoning part
-
-        # Step 3: Format output - answer format matches original data
-        return {"output": f"<think>{reasoning}</think>{correct_answer}"}  # e.g., "<think>...</think>A"
-    ```
-
-    ### Output Requirements
-    - EVERY sample MUST have `<think>` and `</think>` tags
-    - Answer AFTER `</think>`: must match original data format
+    - Format: `<think>{reasoning}</think>{answer}`
+    - The **answer** (content AFTER `</think>`) must follow **Benchmark Description**
+    - DO NOT ask for `<think>` tags in prompts (models refuse this)
+    {% else %}
+    - If base model is NOT a thinking model (no native `<think>` token), DO NOT add `<think>` tags
+    - Output must contain step-by-step reasoning (CoT)
+    {% endif %}
+    - **Answer format must follow Benchmark Description**
 
     ## 6.2 Post-Processing Validation
+    {% if force_think_token %}
     - **Structure check**: `"<think>" in output and "</think>" in output`
-    - **Answer check**: Content AFTER `</think>` must match original data format
+    {% endif %}
+    - **Content check**: Output must contain reasoning (not just direct answer)
+    - **Answer check**: Answer format must match Benchmark Description
 
     # Part 7: Previous Failed Attempts
     {% if queried_former_failed_knowledge|length != 0 %}
@@ -375,6 +362,7 @@ finetune_coder:
         - If you need PiSSA initialization, use ZeRO Stage 2 instead of ZeRO Stage 3
       - `load_best_model_at_end: true` requires `eval_strategy` == `save_strategy` (both "steps" or both "epoch"). If unsure, set `load_best_model_at_end: false`
 
+    {% if force_think_token %}
     {% if has_think_token is defined and not has_think_token %}
     ## Special Token Configuration for CoT Training
     The base model does NOT have `<think>` token in its vocabulary.
@@ -389,6 +377,8 @@ finetune_coder:
     ## Special Token Note
     The base model already supports `<think>` token natively. No need to add special tokens for CoT training.
     {% endif %}
+    {% endif %}
+    {# When force_think_token=false, no special token configuration needed #}
 
     {% if data_stats %}
     ## Processed Data Statistics (from debug mode)
@@ -594,16 +584,20 @@ data_eval:
     - Assessment based on task-appropriate criteria
 
     ## Hard Check Criteria (AUTOMATIC FAIL if not met)
+    {% if force_think_token %}
+    ### 1. COT Format Verification (HARD FAIL)
+    - EVERY sample MUST contain `<think>` and `</think>` tags
+    - Content AFTER `</think>` must be non-empty
 
-    ### 1. COT Format Verification (MANDATORY - HARD FAIL)
-    **CRITICAL: This is the most important check. Missing `<think>` tags = automatic rejection.**
+    **Rejection:** "FAIL: {X} samples missing <think> tags."
+    {% else %}
+    ### 1. COT Format Verification (HARD FAIL)
+    - Output must contain reasoning content (not just a direct answer)
+    - Answer format must match **Benchmark Description**
+    - Do NOT reject for reasoning quality or answer correctness
 
-    - EVERY sample's output MUST contain both `<think>` and `</think>` tags
-    - Check: `if '<think>' not in output or '</think>' not in output: FAIL`
-    - Content AFTER `</think>` must be non-empty (the actual answer)
-
-    **Rejection message if COT check fails:**
-    "FAIL: {X}% of samples missing <think> tags. ALL training data MUST include CoT reasoning wrapped in <think>...</think> tags. The script must generate reasoning via LLM and wrap it with code."
+    **Rejection:** "FAIL: {X}% of samples are direct answers without reasoning."
+    {% endif %}
 
     ### 2. Sample Count Check
     - Debug mode should generate ~100 samples
@@ -611,18 +605,18 @@ data_eval:
     - Reject if either criteria is not met
 
     ## Final Decision Guidelines
-    **Core Principle: Strict on COT format, lenient on other data quality aspects.**
+    **Core Principle: Strict on COT format, lenient on reasoning quality and answer correctness.**
 
     - **Approve (true)** if:
       - Script runs successfully (exit_code == 0)
       - At least 1 sample is generated
-      - ALL samples have `<think>` and `</think>` tags (MANDATORY)
+      {% if force_think_token %}- ALL samples have `<think>` and `</think>` tags (MANDATORY){% else %}- ALL samples contain reasoning content (not just direct answers){% endif %}
       - Data format is correct (Alpaca format with instruction/output)
 
     - **Reject (false)** if ANY of these:
       - Script fails to run (exit_code != 0)
       - Zero samples are generated
-      - **ANY sample missing `<think>` or `</think>` tags (HARD FAIL)**
+      {% if force_think_token %}- **ANY sample missing `<think>` or `</think>` tags (HARD FAIL)**{% else %}- **ANY sample missing reasoning content (just direct answer)**{% endif %}
       - Data format is fundamentally broken
 
     - **Do NOT reject** for:

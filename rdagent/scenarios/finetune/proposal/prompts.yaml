@@ -55,18 +55,23 @@ unified_hypothesis_gen:
 
     ## 1.3 Data Quality & CoT Requirements
 
-    **CRITICAL: ALL training data MUST include `<think>` tags. No exceptions.**
-
     **Principle: Data quality must match training objectives.**
 
     Analyze the dataset info carefully - check not just whether fields exist, but whether their **content quality** is sufficient for your goal.
+
+    **CRITICAL: ALL training data MUST include Chain-of-Thought reasoning. No direct answers.**
 
     ### 1.3.0 Quality Strategy
     - **Augmentation/Rewrite**: Use LLM to generate/enhance reasoning (preferred)
     - **Filter**: Remove low-quality samples
     - Priority: augment > filter > direct use
 
-    **Key**: ALL output must use `<think>[reasoning]</think>[answer]` format - no direct answers allowed.
+    {% if force_think_token %}
+    **Key**: ALL output must use `<think>[reasoning]</think>[answer]` format. The answer (after `</think>`) must follow **Benchmark Description**.
+    {% else %}
+    **Key**: Output must contain step-by-step reasoning. 
+    {% endif %}
+    **Follow the answer format specified in Benchmark Description.**
 
     ### 1.3.1 General Strategies
 
@@ -115,8 +120,6 @@ unified_hypothesis_gen:
 
     ## 1.5 Output Format
 
-    **CRITICAL: ALL training data MUST include `<think>` tags. No exceptions.**
-
     **IMPORTANT: Read `dataset_info.json` description field carefully!** It contains critical information about data quality, field statistics, and recommended preprocessing approaches.
 
     **Handling missing/empty fields:**
@@ -125,27 +128,30 @@ unified_hypothesis_gen:
 
     Output filename: `data.json` (do NOT specify path, path handled by system). Use Alpaca format:
 
+    **CRITICAL: ALL training data MUST include Chain-of-Thought reasoning.**
+
     ```json
     [
       {
         "instruction": "...",
         "input": "...",
-        "output": "<think>[reasoning]</think>[answer]"  // REQUIRED format for ALL tasks
+    {% if force_think_token %}
+        "output": "<think>[reasoning]</think>[answer]"
+    {% else %}
+        "output": "[step-by-step reasoning]...[answer]"
+    {% endif %}
       }
     ]
     ```
 
-    **Answer format examples (content AFTER `</think>`):**
-    - MCQ: `<think>Analysis of options...</think>A`
-    - Math: `<think>Step-by-step solution...</think>\\boxed{42}`
-    - Fact Check: `<think>Evidence analysis...</think>True`
-    - JSON output: `<think>Reasoning...</think>{"key": "value"}`
-
+    {% if force_think_token %}
     **Note**: The `<think>` tags must be added by CODE, not requested in LLM prompts (models refuse direct `<think>` requests).
+    The **answer** (content AFTER `</think>`) must follow **Benchmark Description**.
+    {% else %}
+    **Note**: Focus on reasoning quality, not format. Let LLM generate naturally. And DO NOT include `<think>` tags.
+    {% endif %}
 
-    **Handling missing/empty fields:**
-    - Small portion missing (<10%) → Filter out
-    - Many samples missing → Consider augmentation/generation instead
+    **Answer format**: Follow the format specified in Benchmark Description.
 
     # ═══════════════════════════════════════════════════════════════════════════
     # PART 2: TRAINING CONFIGURATION

@@ -129,6 +129,7 @@ class FTExperiment2Feedback(Experiment2Feedback):
             system_prompt = T(f".prompts:{version}.system").r(
                 scenario=self.scen.get_scenario_all_desc(),
                 has_sota=sota_benchmark is not None,
+                force_think_token=FT_RD_SETTING.force_think_token,
             )
             user_prompt = T(f".prompts:{version}.user").r(
                 hypothesis=exp.hypothesis,

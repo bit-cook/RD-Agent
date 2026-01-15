@@ -216,6 +216,11 @@ def run_benchmark(
         **inference_config,
     }
 
+    # Override use_cot_postprocessor based on force_think_token setting
+    # When force_think_token=false, we don't need the CoT postprocessor to extract answers
+    if not FT_RD_SETTING.force_think_token:
+        template_vars["use_cot_postprocessor"] = False
+
     # Render Jinja2 template
     config_content = T("rdagent.scenarios.finetune.benchmark.configs.opencompass_template:template").r(**template_vars)
 

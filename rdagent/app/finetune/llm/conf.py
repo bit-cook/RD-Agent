@@ -112,6 +112,12 @@ class LLMFinetunePropSetting(ExtendedBaseSettings):
     # Coder settings
     coder_max_loop: int = 10
 
+    # CoT format settings
+    force_think_token: bool = False
+    """Force <think> token wrapping for CoT training data (env: FT_FORCE_THINK_TOKEN).
+    When True: Data must be wrapped in <think>...</think> format, benchmark uses extract-non-reasoning-content postprocessor.
+    When False: CoT reasoning required but format is flexible, no postprocessor needed."""
+
 
 # Global setting instance for LLM finetuning scenario
 FT_RD_SETTING = LLMFinetunePropSetting()
