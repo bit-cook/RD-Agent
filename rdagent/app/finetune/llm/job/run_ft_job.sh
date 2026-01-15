@@ -84,6 +84,7 @@ for ((i=0; i<NUM_TASKS; i++)); do
     benchmark=$(jq -r ".tasks[$i].benchmark" "$CONFIG_FILE")
     gpus=$(jq -r ".tasks[$i].gpus // \"0\"" "$CONFIG_FILE")
     port=$(jq -r ".tasks[$i].port // empty" "$CONFIG_FILE")
+    task_timeout=$(jq -r ".tasks[$i].timeout // \"12h\"" "$CONFIG_FILE")
 
     # Load benchmark_description: tasks.json -> scenarios.json
     benchmark_desc=$(jq -r ".tasks[$i].benchmark_description // empty" "$CONFIG_FILE")
@@ -111,7 +112,9 @@ for ((i=0; i<NUM_TASKS; i++)); do
         [[ -n "$benchmark_desc" ]] && export FT_BENCHMARK_DESCRIPTION="$benchmark_desc"
         [[ -n "$port" ]] && export OPENAI_API_BASE="http://localhost:$port"
         cd "$RDAGENT_DIR"
-        python rdagent/app/finetune/llm/loop.py --base-model "$model"
+        timeout_arg=""
+        [[ -n "$task_timeout" ]] && timeout_arg="--timeout $task_timeout"
+        python rdagent/app/finetune/llm/loop.py --base-model "$model" $timeout_arg
     ) > "$JOB_DIR/${task_name}.log" 2>&1 &
 
     PIDS+=($!)
