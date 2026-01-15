@@ -77,7 +77,12 @@ echo "Log:       $JOB_DIR"
 echo "Workspace: $FT_WORKSPACE_BASE/$JOB_ID"
 echo ""
 
-declare -a PIDS
+# Setup tmux session
+TMUX_SESSION="rdagent"
+tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$TMUX_SESSION" -n "main"
+echo "Tmux session created: $TMUX_SESSION"
+echo ""
 
 for ((i=0; i<NUM_TASKS; i++)); do
     model=$(jq -r ".tasks[$i].model" "$CONFIG_FILE")
@@ -99,26 +104,32 @@ for ((i=0; i<NUM_TASKS; i++)); do
     [[ -n "$port" ]] && port_info=", port=$port"
     echo "Task $i: $task_name (model=$model, benchmark=$benchmark, gpus=$gpus$port_info)"
 
-    # Run task
-    # Source .env from job directory, then override with task-specific values
+    # Run task in tmux window with script -c for output capture
     task_workspace="$FT_WORKSPACE_BASE/$JOB_ID/$task_name"
     mkdir -p "$task_workspace"
-    (
-        set -a && source "$ENV_FILE" && set +a
-        export CUDA_VISIBLE_DEVICES="$gpus"
-        export LOG_TRACE_PATH="$trace_path"
-        export WORKSPACE_PATH="$task_workspace"
-        export FT_TARGET_BENCHMARK="$benchmark"
-        [[ -n "$benchmark_desc" ]] && export FT_BENCHMARK_DESCRIPTION="$benchmark_desc"
-        [[ -n "$port" ]] && export OPENAI_API_BASE="http://localhost:$port"
-        cd "$RDAGENT_DIR"
-        timeout_arg=""
-        [[ -n "$task_timeout" ]] && timeout_arg="--timeout $task_timeout"
-        python rdagent/app/finetune/llm/loop.py --base-model "$model" $timeout_arg
-    ) > "$JOB_DIR/${task_name}.log" 2>&1 &
+    LOG_FILE="$JOB_DIR/${task_name}.log"
 
-    PIDS+=($!)
-    echo "  PID:       ${PIDS[-1]}"
+    # Create tmux window for this task (use benchmark name only)
+    tmux new-window -t "$TMUX_SESSION" -n "$benchmark"
+
+    # Build the command with environment setup
+    timeout_arg=""
+    [[ -n "$task_timeout" ]] && timeout_arg="--timeout $task_timeout"
+
+    TASK_CMD="set -a && source '$ENV_FILE' && set +a"
+    TASK_CMD="$TASK_CMD && export CUDA_VISIBLE_DEVICES='$gpus'"
+    TASK_CMD="$TASK_CMD && export LOG_TRACE_PATH='$trace_path'"
+    TASK_CMD="$TASK_CMD && export WORKSPACE_PATH='$task_workspace'"
+    TASK_CMD="$TASK_CMD && export FT_TARGET_BENCHMARK='$benchmark'"
+    [[ -n "$benchmark_desc" ]] && TASK_CMD="$TASK_CMD && export FT_BENCHMARK_DESCRIPTION='$benchmark_desc'"
+    [[ -n "$port" ]] && TASK_CMD="$TASK_CMD && export OPENAI_API_BASE='http://localhost:$port'"
+    TASK_CMD="$TASK_CMD && cd '$RDAGENT_DIR'"
+    TASK_CMD="$TASK_CMD && python rdagent/app/finetune/llm/loop.py --base-model '$model' $timeout_arg"
+
+    # Run with script -c to capture terminal output (including colors)
+    tmux send-keys -t "$TMUX_SESSION:$benchmark" "script -q -f '$LOG_FILE' -c \"$TASK_CMD\"" Enter
+
+    echo "  Window:    $benchmark"
     echo ""
 
     # Stagger starts
@@ -151,6 +162,9 @@ for ((i=0; i<NUM_TASKS; i++)); do
 done
 
 echo "=============================================="
-echo "All tasks started. PIDs: ${PIDS[*]}"
+echo "All tasks started in tmux session: $TMUX_SESSION"
+echo "  - Attach:  tmux attach -t $TMUX_SESSION"
+echo "  - List:    tmux list-windows -t $TMUX_SESSION"
+echo "  - Select:  tmux select-window -t $TMUX_SESSION:{window_name}"
 echo "Monitor: tail -f $JOB_DIR/*.log"
 echo "UI: streamlit run rdagent/app/finetune/llm/ui/app.py (Job Folder: $JOB_DIR)"
