@@ -101,8 +101,8 @@
 
   "FinanceIQ_gen": {
     "category": "finance",
-    "scenario": "Improve the model's financial domain knowledge across accounting, auditing, economics, corporate finance, insurance, securities, and tax through multiple-choice question answering with conceptual understanding and practical application.",
-    "benchmark_description": "FinanceIQ tests financial domain knowledge through multiple-choice questions (A/B/C/D). Covers 10 Chinese financial certification exams: CPA (注册会计师), banking qualification, securities qualification, fund qualification, futures qualification, insurance qualification, tax advisor, asset appraiser, economist, and auditor. Uses generative inference with 5-shot in-context learning examples. Evaluation metric: accuracy. Expected Output Format: Put the answer option in double brackets, e.g., [[A]], [[B]], [[C]], or [[D]]."
+    "scenario": "Improve the model's financial domain knowledge and reasoning capabilities across Chinese financial certification exams including CPA, banking, securities, fund, futures, insurance, tax, and actuarial qualifications through multiple-choice question answering.",
+    "benchmark_description": "FinanceIQ tests financial domain knowledge through multiple-choice questions (A/B/C/D). Covers 10 Chinese financial certification exams: CPA (注册会计师), banking qualification, securities qualification, fund qualification, futures qualification, insurance qualification (CICE), tax advisor, economist, financial planner, and actuary. Uses LLM Judge for evaluation with 5-shot in-context learning. Evaluation metric: accuracy."
   },
 
   "bioprobench_gen": {
