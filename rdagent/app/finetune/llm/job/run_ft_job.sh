@@ -96,6 +96,7 @@ for ((i=0; i<NUM_TASKS; i++)); do
     if [[ -z "$benchmark_desc" ]]; then
         benchmark_desc=$(jq -r ".[\"$benchmark\"].benchmark_description // empty" "$SCENARIOS_FILE")
     fi
+    # Note: Special characters in benchmark_desc are handled by writing to env file
     model_name=$(basename "$model")
     task_name="${benchmark}_${model_name}"
     trace_path="$JOB_DIR/$task_name"
@@ -109,27 +110,35 @@ for ((i=0; i<NUM_TASKS; i++)); do
     mkdir -p "$task_workspace"
     LOG_FILE="$JOB_DIR/${task_name}.log"
 
+    # Write task-specific env file (avoids command-line escaping issues with special chars)
+    TASK_ENV_FILE="$task_workspace/.task_env"
+    cat > "$TASK_ENV_FILE" << EOF
+CUDA_VISIBLE_DEVICES='$gpus'
+LOG_TRACE_PATH='$trace_path'
+WORKSPACE_PATH='$task_workspace'
+FT_TARGET_BENCHMARK='$benchmark'
+EOF
+    # Write benchmark_desc separately to handle special characters properly
+    if [[ -n "$benchmark_desc" ]]; then
+        printf "FT_BENCHMARK_DESCRIPTION=%s\n" "'$benchmark_desc'" >> "$TASK_ENV_FILE"
+    fi
+    [[ -n "$port" ]] && echo "OPENAI_API_BASE='http://localhost:$port'" >> "$TASK_ENV_FILE"
+
     # Create tmux window for this task and get its full target (e.g., rdagent:1.0)
     # Use "session:" format to ensure window is created in the correct session
     WIN_TARGET=$(tmux new-window -t "$TMUX_SESSION:" -n "$benchmark" -P)
 
-    # Build the command with environment setup
+    # Build the command with environment setup (env vars loaded from file)
     timeout_arg=""
     [[ -n "$task_timeout" ]] && timeout_arg="--timeout $task_timeout"
 
     TASK_CMD="source ~/miniconda3/etc/profile.d/conda.sh && conda activate qz_rdagent"
-    TASK_CMD="$TASK_CMD && set -a && source '$ENV_FILE' && set +a"
-    TASK_CMD="$TASK_CMD && export CUDA_VISIBLE_DEVICES='$gpus'"
-    TASK_CMD="$TASK_CMD && export LOG_TRACE_PATH='$trace_path'"
-    TASK_CMD="$TASK_CMD && export WORKSPACE_PATH='$task_workspace'"
-    TASK_CMD="$TASK_CMD && export FT_TARGET_BENCHMARK='$benchmark'"
-    [[ -n "$benchmark_desc" ]] && TASK_CMD="$TASK_CMD && export FT_BENCHMARK_DESCRIPTION='$benchmark_desc'"
-    [[ -n "$port" ]] && TASK_CMD="$TASK_CMD && export OPENAI_API_BASE='http://localhost:$port'"
+    TASK_CMD="$TASK_CMD && set -a && source '$ENV_FILE' && source '$TASK_ENV_FILE' && set +a"
     TASK_CMD="$TASK_CMD && cd '$RDAGENT_DIR'"
     TASK_CMD="$TASK_CMD && python rdagent/app/finetune/llm/loop.py --base-model '$model' $timeout_arg"
 
     # Run with script -c to capture terminal output (using full target for reliability)
-    tmux send-keys -t "$WIN_TARGET" "script -q -f '$LOG_FILE' -c \"$TASK_CMD\"" Enter
+    tmux send-keys -t "$WIN_TARGET" "script -q '$LOG_FILE' -c \"$TASK_CMD\"" Enter
 
     echo "  Window:    $benchmark"
     echo ""
