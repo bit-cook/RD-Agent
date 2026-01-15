@@ -50,38 +50,38 @@
   "chemcotbench": {
     "category": "chemistry",
     "scenario": "Improve the model's chemical reasoning capabilities on molecular structures including understanding molecular features, editing molecules, optimizing properties, and predicting reaction outcomes.",
-    "benchmark_description": "ChemCoTBench tests step-wise chemical reasoning on SMILES molecular structures. Tasks include molecule understanding (identify functional groups, ring systems), molecule editing (add/delete/substitute groups while maintaining validity), molecule optimization (modify for desired properties), and reaction prediction (products, mechanisms, conditions). Expected Output Format: Return JSON: {\"output\": \"<SMILES or answer>\"}, optionally wrapped in ```json code block."
+    "benchmark_description": "ChemCoTBench tests step-wise chemical reasoning on SMILES molecular structures. Tasks include molecule understanding (identify functional groups, ring systems), molecule editing (add/delete/substitute groups while maintaining validity), molecule optimization (modify for desired properties), and reaction prediction (products, mechanisms, conditions). Contains subtasks with different output requirements. Expected Output Format: Return JSON: {\"output\": \"<answer>\"} where answer format depends on subtask - SMILES string for molecular tasks, numeric count for counting tasks, or Yes/No for equivalence tasks."
   },
   "chemcotbench_mol_und": {
     "category": "chemistry",
     "scenario": "Improve the model's ability to analyze molecular structures and identify structural features including functional groups (hydroxyl, carboxyl, amine), ring systems (aromatic, aliphatic), and molecular scaffolds.",
-    "benchmark_description": "Molecule Understanding - Analyze SMILES strings to identify structural features: count functional groups (hydroxyl, carboxyl, amine, etc.), identify ring systems (aromatic, aliphatic), check SMILES equivalence, and generate Murcko scaffolds. Requires parsing SMILES notation and applying organic chemistry knowledge. Expected Output Format: Return JSON: {\"output\": \"<SMILES or answer>\"}."
+    "benchmark_description": "Molecule Understanding - Analyze SMILES strings for structural features. Subtasks: (1) fg_count/ring_count: return integer count, (2) equivalence/ring_system_scaffold: return Yes or No, (3) Murcko_scaffold: return SMILES string. Requires parsing SMILES notation and applying organic chemistry knowledge. Expected Output Format: Return JSON: {\"output\": \"<answer>\"} where answer is integer/Yes/No/SMILES depending on subtask."
   },
   "chemcotbench_mol_edit": {
     "category": "chemistry",
     "scenario": "Improve the model's ability to perform precise structural modifications on molecules (add, delete, substitute functional groups) while maintaining chemical validity and molecule integrity.",
-    "benchmark_description": "Molecule Editing - Perform precise structural modifications on SMILES: add functional groups at valid positions, delete groups while maintaining molecule integrity, substitute one group for another. Output must be valid SMILES representing chemically feasible molecules. Expected Output Format: Return JSON: {\"output\": \"<valid SMILES>\"}. SMILES validity is verified using RDKit."
+    "benchmark_description": "Molecule Editing - Perform structural modifications on SMILES. Subtasks: add (add functional group), delete (remove group), sub (substitute group). Output must be valid SMILES representing chemically feasible molecules. Expected Output Format: Return JSON: {\"output\": \"<valid SMILES>\"}. SMILES validity is verified using RDKit."
   },
   "chemcotbench_mol_opt": {
     "category": "chemistry",
     "scenario": "Improve the model's ability to modify molecular structures to achieve target properties such as improved solubility, drug-likeness, or binding affinity to specific biological targets.",
-    "benchmark_description": "Molecule Optimization - Modify molecular structures to achieve target properties: improve solubility (logP), drug-likeness (QED), or binding affinity to specific targets (DRD, GSK, JNK). Requires understanding structure-property relationships and making chemically sensible modifications. Expected Output Format: Return JSON: {\"output\": \"<optimized SMILES>\"}."
+    "benchmark_description": "Molecule Optimization - Modify structures to achieve target properties. Subtasks: drd/gsk/jnk (binding affinity to DRD2/GSK3β/JNK3 targets), logp (lipophilicity), qed (drug-likeness), solubility. Requires understanding structure-property relationships. Expected Output Format: Return JSON: {\"output\": \"<optimized SMILES>\"}."
   },
   "chemcotbench_reaction": {
     "category": "chemistry",
     "scenario": "Improve the model's ability to predict chemical reaction outcomes including forward synthesis, retrosynthesis, mechanism selection, and reaction conditions based on functional group transformations.",
-    "benchmark_description": "Reaction Prediction - Predict chemical reaction outcomes: forward synthesis (reactants → products), retrosynthesis (products → reactants), mechanism selection, and reaction condition prediction. Requires understanding reaction types, functional group transformations, and chemical feasibility. Expected Output Format: Return JSON: {\"output\": \"<SMILES or text answer>\"}."
+    "benchmark_description": "Reaction Prediction - Predict reaction outcomes. Subtasks: fs (forward synthesis: reactants→products), retro (retrosynthesis: products→reactants), rcr (reaction condition recommendation), nepp (named reaction prediction), mechsel (mechanism selection). Requires understanding reaction types and functional group transformations. Expected Output Format: Return JSON: {\"output\": \"<SMILES or text answer>\"}."
   },
 
   "tablebench_data_analysis": {
     "category": "table_qa",
     "scenario": "Improve the model's ability to analyze tabular data for complex questions including trend identification, correlation analysis, statistical computation, and data-driven forecasting.",
-    "benchmark_description": "Table Data Analysis - Analyze tabular data to answer complex questions: identify trends and patterns, perform correlation analysis between variables, make forecasts based on historical data, and compute statistical measures. Requires reading tables accurately and applying analytical reasoning. Expected Output Format: End response with \"Final Answer: <value>\". Numeric answers allow ±10% relative error tolerance."
+    "benchmark_description": "Table Data Analysis - Analyze tabular data to answer complex questions. Subtask types with different evaluation: (1) CorrelationAnalysis/TrendForecasting/StatisticalAnalysis: numeric answers with ±10% relative error tolerance, (2) ImpactAnalysis: exact match required, (3) Other analysis types: evaluated using ROUGE-L. Requires reading tables accurately and applying analytical reasoning. Expected Output Format: End response with \"Final Answer: <value>\"."
   },
   "tablebench_fact_checking": {
     "category": "table_qa",
     "scenario": "Improve the model's ability to verify factual claims against tabular data through accurate data extraction, implicit relationship understanding, and multi-hop reasoning across table cells.",
-    "benchmark_description": "Table Fact Checking - Verify factual claims against tabular data. Determine if statements are supported, refuted, or not determinable from the table. Requires accurate data extraction, understanding implicit relationships, and multi-hop reasoning across table cells. Expected Output Format: End response with \"Final Answer: <Yes/No or specific value>\"."
+    "benchmark_description": "Table Fact Checking - Answer table-based factual questions accurately. Questions may ask for specific information (numbers, names, dates) or verification (Yes/No, True/False). Uses Exact Match evaluation. Expected Output Format: End response with \"Final Answer: <value>\" where value is the precise answer to the question."
   },
   "tablebench_numerical_reasoning": {
     "category": "table_qa",
@@ -102,7 +102,7 @@
   "FinanceIQ_ppl": {
     "category": "finance",
     "scenario": "Improve the model's financial domain knowledge across accounting, auditing, economics, corporate finance, insurance, securities, and tax through multiple-choice question answering with conceptual understanding and practical application.",
-    "benchmark_description": "FinanceIQ tests financial domain knowledge through multiple-choice questions. Covers accounting (GAAP, financial statements), auditing (standards, procedures), economics (micro/macro), corporate finance (valuation, capital structure), insurance, securities analysis, and tax law. Requires both conceptual understanding and practical application. Expected Output Format: Perplexity-based evaluation - model is evaluated by comparing probability scores for each option (A/B/C/D). Higher probability for correct answer indicates better performance."
+    "benchmark_description": "FinanceIQ tests financial domain knowledge through multiple-choice questions (A/B/C/D). Covers 10 Chinese financial certification exams: CPA (注册会计师), banking qualification, securities qualification, fund qualification, futures qualification, insurance qualification, tax advisor, asset appraiser, economist, and auditor. Uses probability scoring: model assigns probability to each option, highest probability option is selected as answer. Evaluation metric: accuracy. Uses 5-shot in-context learning examples. Expected Output Format: Select the option (A/B/C/D) with highest probability score."
   },
 
   "bioprobench_gen": {
