@@ -69,6 +69,7 @@ scenario_description: |-
 
   ## Timeout Constraints
   - Full Training Timeout: {{ full_timeout }}
+  - Data Processing Timeout: {{ data_processing_timeout }}
   {% endif %}
 
   ## (Very important!)Sample Size Control (Code-Based, No LLM)

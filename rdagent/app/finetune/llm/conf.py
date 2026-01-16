@@ -39,8 +39,10 @@ class LLMFinetunePropSetting(ExtendedBaseSettings):
     # Timeouts (longer for LLM training, all for Docker container timeout)
     full_timeout: int = 360000
     """Full training timeout in seconds (default 100 hours, env: FT_FULL_TIMEOUT). Used in running stage for complete model training."""
-    data_processing_timeout: int = 14400
-    """Data processing script timeout in seconds (default 4 hours, env: FT_DATA_PROCESSING_TIMEOUT)."""
+    data_processing_timeout: int = 3600
+    """Data processing script timeout in seconds (default 1 hour, env: FT_DATA_PROCESSING_TIMEOUT). Used for full data processing in running stage."""
+    debug_data_processing_timeout: int = 1200
+    """Debug data processing timeout in seconds (default 20 minutes, env: FT_DEBUG_DATA_PROCESSING_TIMEOUT). Used for --debug mode in coding stage."""
     micro_batch_timeout: int = 1800
     """Micro-batch test timeout in seconds (default 30 minutes, env: FT_MICRO_BATCH_TIMEOUT)."""
 

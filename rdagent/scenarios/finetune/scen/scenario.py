@@ -298,6 +298,7 @@ class LLMFinetuneScen(DataScienceScen):
             dataset_config=self.dataset_config,
             model_info=self.model_info,
             full_timeout=f"{self.real_full_timeout() / 60 / 60:.2f} hours",
+            data_processing_timeout=f"{FT_RD_SETTING.data_processing_timeout / 60:.0f} minutes",
             enable_dataset_description=enable_dataset_description,
             upper_data_size_limit=FT_RD_SETTING.upper_data_size_limit,
         )

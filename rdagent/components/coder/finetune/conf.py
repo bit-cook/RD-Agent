@@ -197,6 +197,7 @@ def get_ft_env(
     # Select timeout based on operation type
     timeout_map = {
         "data_processing": FT_RD_SETTING.data_processing_timeout,
+        "debug_data_processing": FT_RD_SETTING.debug_data_processing_timeout,
         "micro_batch": FT_RD_SETTING.micro_batch_timeout,
         "full_training": FT_RD_SETTING.full_timeout,
     }
@@ -229,6 +230,7 @@ def get_ft_env(
 
 def get_data_processing_env(
     enable_cache: bool | None = None,
+    is_debug: bool = False,
 ) -> tuple[Env, dict]:
     """Get environment for data processing scripts with LLM API access.
 
@@ -239,13 +241,14 @@ def get_data_processing_env(
 
     Args:
         enable_cache: Whether to enable Docker caching
+        is_debug: Whether running in debug mode (shorter timeout, default 20 min vs 1 hour)
 
     Returns:
         Tuple of (env, env_vars) where env_vars contains LLM API keys
         to be passed to env.run() as the env parameter
     """
     env = get_ft_env(
-        operation="data_processing",
+        operation="debug_data_processing" if is_debug else "data_processing",
         enable_cache=enable_cache,
     )
 

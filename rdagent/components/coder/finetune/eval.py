@@ -77,7 +77,7 @@ class FTDataEvaluator(CoSTEEREvaluator):
         # So we clear the workspace every time.
 
         # Step 3: Execute script in DEBUG mode (generates ~10 samples for fast validation)
-        env, env_vars = get_data_processing_env()
+        env, env_vars = get_data_processing_env(is_debug=True)
 
         # Clear workspace (except logs and file_dict items) before data processing
         clear_workspace(implementation, env=env)
