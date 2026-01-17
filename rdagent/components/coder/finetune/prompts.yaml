@@ -688,6 +688,9 @@ runner_eval:
     - Loss patterns should NEVER cause final_decision to be false
 
     ## Error Categories (if failed)
+    - **Timeout (exit_code=124)**: Process was killed due to timeout. Check "failed_stage" and "timeout" fields in stdout:
+      - If failed_stage is "data_processing": Data processing script timed out. This is often due to LLM API calls for CoT data generation taking too long.
+      - If failed_stage is "training": Training timed out. 
     - **OOM**: GPU memory exhaustion - suggest batch size/model changes
     - **CUDA**: Driver/device issues - suggest environment checks
     - **Config**: Invalid parameters - suggest specific fixes
@@ -714,6 +717,9 @@ runner_eval:
     # Execution Info
     - Exit Code: {{ exit_code }}
     - Model Output Files: {{ model_files_status }}
+    {% if failed_stage %}- Failed Stage: {{ failed_stage }}
+    - Stage Timeout Config: {{ timeout_seconds }} seconds
+    {% endif %}
 
     # Benchmark Results
     ```json

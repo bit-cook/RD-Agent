@@ -5,6 +5,7 @@ from rdagent.components.coder.CoSTEER.evaluators import (
     CoSTEEREvaluator,
     CoSTEERSingleFeedback,
 )
+from rdagent.app.finetune.llm.conf import FT_RD_SETTING
 from rdagent.components.coder.finetune.conf import (
     FT_DATA_FILE_NAME,
     FT_DATA_SCRIPT_NAME,
@@ -124,6 +125,7 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
                 model_files_exist=False,
                 benchmark_result=None,
                 loss_history=None,
+                failed_stage="data_processing",
             )
 
         logger.info("Full data processing completed successfully")
@@ -175,6 +177,7 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
                 model_files_exist=len(model_output_files) > 0,
                 benchmark_result=None,
                 loss_history=None,
+                failed_stage="training",
             )
 
         # Extract loss history from training output
@@ -237,18 +240,29 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
         model_files_exist: bool,
         benchmark_result: Optional[Dict] = None,
         loss_history: Optional[List[Dict]] = None,
+        failed_stage: Optional[str] = None,
     ) -> CoSTEERSingleFeedback:
         """Generate LLM-based feedback for runner evaluation.
 
         LLM will determine final_decision based on all provided information.
+
+        Args:
+            failed_stage: Which stage failed - "data_processing" or "training"
         """
         # Parse execution log to extract structured info (reuse unified_validator's method)
         # Reduces ~36k tokens to ~500 tokens by extracting: status, errors, metrics, warnings
-        parsed_stdout = LLMConfigValidator()._parse_execution_log(raw_stdout, exit_code)
+        parsed_stdout = LLMConfigValidator()._parse_execution_log(raw_stdout, exit_code, failed_stage)
+
+        # Get timeout config for the failed stage
+        timeout_seconds = None
+        if failed_stage == "data_processing":
+            timeout_seconds = FT_RD_SETTING.data_processing_timeout
+        elif failed_stage == "training":
+            timeout_seconds = FT_RD_SETTING.full_timeout
 
         # Pass loss_history directly (simpler and preserves full information)
         # Sample train entries if too many to avoid token bloat
-        if len(loss_history["train"]) > 60:
+        if loss_history and len(loss_history.get("train", [])) > 60:
             loss_history["train"] = loss_history["train"][:30] + loss_history["train"][-30:]
 
         system_prompt = T("rdagent.components.coder.finetune.prompts:runner_eval.system").r()
@@ -261,7 +275,9 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
             benchmark_result=(
                 json.dumps(benchmark_result, indent=2) if benchmark_result else "N/A (not executed or failed)"
             ),
-            loss_history=json.dumps(loss_history, indent=2) if (loss_history["train"] or loss_history["eval"]) else "N/A",
+            loss_history=json.dumps(loss_history, indent=2) if (loss_history and (loss_history.get("train") or loss_history.get("eval"))) else "N/A",
+            failed_stage=failed_stage,
+            timeout_seconds=timeout_seconds,
         )
 
         feedback = build_cls_from_json_with_retry(

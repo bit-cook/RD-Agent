@@ -147,7 +147,7 @@ class LLMConfigValidator:
         self._supported_params_cache = supported_params
         return supported_params
 
-    def _parse_execution_log(self, stdout: str, exit_code: int) -> str:
+    def _parse_execution_log(self, stdout: str, exit_code: int, failed_stage: str = None) -> str:
         """Parse execution log and extract key information for LLM evaluation.
 
         Reduces log from ~36k tokens to ~500 tokens by extracting only:
@@ -155,11 +155,23 @@ class LLMConfigValidator:
         - Error messages (if any)
         - Training metrics (if successful)
         - Warnings (limited)
+        - Timeout and stage information (if applicable)
+
+        Args:
+            stdout: The execution output
+            exit_code: The process exit code
+            failed_stage: Which stage failed - "data_processing" or "training"
         """
         result = {
             "status": "success" if exit_code == 0 else "failed",
             "exit_code": exit_code,
         }
+
+        # Handle timeout (exit_code 124)
+        if exit_code == 124:
+            result["timeout"] = True
+            if failed_stage:
+                result["failed_stage"] = failed_stage
 
         # 1. Extract error information (highest priority)
         # Strategy: extract rank0's error block (each line prefixed with [rank0]:)
