@@ -26,22 +26,22 @@ from rdagent.utils.agent.tpl import T
 from rdagent.utils.agent.workflow import build_cls_from_json_with_retry
 
 
-def extract_loss_history(output_path) -> List[Dict[str, Any]]:
+def extract_loss_history(output_path) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Extract training loss history from LlamaFactory's trainer_state.json.
+    Extract training and evaluation loss history from LlamaFactory's trainer_state.json.
 
     Args:
         output_path: Path to the training output directory
 
     Returns:
-        List of loss entries, each containing step, loss, and epoch
+        Dict with 'train' and 'eval' keys, each containing a list of loss entries.
     """
     trainer_state_path = output_path / "trainer_state.json"
-    loss_history = []
+    result = {"train": [], "eval": []}
 
     if not trainer_state_path.exists():
         logger.warning(f"trainer_state.json not found at {trainer_state_path}")
-        return loss_history
+        return result
 
     try:
         with open(trainer_state_path) as f:
@@ -50,20 +50,24 @@ def extract_loss_history(output_path) -> List[Dict[str, Any]]:
         log_history = trainer_state.get("log_history", [])
         for entry in log_history:
             if "loss" in entry:
-                loss_history.append(
-                    {
-                        "step": entry.get("step"),
-                        "loss": entry.get("loss"),
-                        "epoch": entry.get("epoch"),
-                    }
-                )
+                result["train"].append({
+                    "step": entry.get("step"),
+                    "epoch": entry.get("epoch"),
+                    "loss": entry.get("loss"),
+                })
+            if "eval_loss" in entry:
+                result["eval"].append({
+                    "step": entry.get("step"),
+                    "epoch": entry.get("epoch"),
+                    "eval_loss": entry.get("eval_loss"),
+                })
 
-        logger.info(f"Extracted {len(loss_history)} loss entries from trainer_state.json")
+        logger.info(f"Extracted {len(result['train'])} train + {len(result['eval'])} eval entries")
 
     except (json.JSONDecodeError, OSError) as e:
         logger.warning(f"Failed to parse trainer_state.json: {e}")
 
-    return loss_history
+    return result
 
 
 class FTRunnerEvaluator(CoSTEEREvaluator):
@@ -242,20 +246,10 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
         # Reduces ~36k tokens to ~500 tokens by extracting: status, errors, metrics, warnings
         parsed_stdout = LLMConfigValidator()._parse_execution_log(raw_stdout, exit_code)
 
-        # Build loss summary instead of raw history (saves tokens, provides key insights)
-        loss_summary = {}
-        if loss_history:
-            losses = [e["loss"] for e in loss_history]
-            min_idx = losses.index(min(losses))
-            loss_summary = {
-                "logged_entries": len(loss_history),
-                "final_step": loss_history[-1].get("step"),
-                "initial_loss": round(loss_history[0]["loss"], 4),
-                "final_loss": round(loss_history[-1]["loss"], 4),
-                "min_loss": round(min(losses), 4),
-                "min_loss_at_entry": min_idx + 1,  # 1-indexed
-                "loss_trend": "rising_late" if losses[-1] > min(losses) * 1.1 else "stable",
-            }
+        # Pass loss_history directly (simpler and preserves full information)
+        # Sample train entries if too many to avoid token bloat
+        if len(loss_history["train"]) > 60:
+            loss_history["train"] = loss_history["train"][:30] + loss_history["train"][-30:]
 
         system_prompt = T("rdagent.components.coder.finetune.prompts:runner_eval.system").r()
         user_prompt = T("rdagent.components.coder.finetune.prompts:runner_eval.user").r(
@@ -267,7 +261,7 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
             benchmark_result=(
                 json.dumps(benchmark_result, indent=2) if benchmark_result else "N/A (not executed or failed)"
             ),
-            loss_summary=json.dumps(loss_summary, indent=2) if loss_summary else "N/A",
+            loss_history=json.dumps(loss_history, indent=2) if (loss_history["train"] or loss_history["eval"]) else "N/A",
         )
 
         feedback = build_cls_from_json_with_retry(

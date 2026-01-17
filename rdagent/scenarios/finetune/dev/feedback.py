@@ -99,22 +99,12 @@ class FTExperiment2Feedback(Experiment2Feedback):
                 # New format: contains benchmark and training_metrics
                 benchmark = exp_result.get("benchmark", {})
                 raw_metrics = exp_result.get("training_metrics", {})
-                # Convert loss_history to summary to save tokens
-                loss_history = raw_metrics.get("loss_history", [])
-                if loss_history:
-                    losses = [e["loss"] for e in loss_history]
-                    min_idx = losses.index(min(losses))
-                    training_metrics = {
-                        "logged_entries": len(loss_history),
-                        "final_step": loss_history[-1].get("step"),
-                        "initial_loss": round(loss_history[0]["loss"], 4),
-                        "final_loss": round(loss_history[-1]["loss"], 4),
-                        "min_loss": round(min(losses), 4),
-                        "min_loss_at_entry": min_idx + 1,
-                        "loss_trend": "rising_late" if losses[-1] > min(losses) * 1.1 else "stable",
-                    }
-                else:
-                    training_metrics = raw_metrics
+                # Pass loss_history directly (simpler and preserves full information)
+                loss_history = raw_metrics.get("loss_history", {"train": [], "eval": []})
+                # Sample train entries if too many to avoid token bloat
+                if len(loss_history.get("train", [])) > 60:
+                    loss_history["train"] = loss_history["train"][:30] + loss_history["train"][-30:]
+                training_metrics = {"loss_history": loss_history} if (loss_history.get("train") or loss_history.get("eval")) else {}
             else:
                 # Legacy format: exp_result is directly the benchmark result (list of dicts)
                 benchmark = {"accuracy_summary": exp_result, "error_samples": []}

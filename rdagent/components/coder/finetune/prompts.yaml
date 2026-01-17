@@ -320,8 +320,11 @@ finetune_coder:
        - Calculate `logging_steps` adaptively:
          * Estimate total_steps = (num_samples × num_epochs) / (batch_size × gradient_accumulation_steps × num_gpus)
          * Target 20-50 log entries total
-       - **Checkpoint Saving**: Do NOT set `save_steps` - we only need the final model, not intermediate checkpoints
-    6. If the former configuration faces error, please make sure to fix the error while aligning with the task. If these two goals conflict, please prioritize fixing the error.
+    6. **Validation and Checkpoint Strategy (CRITICAL for best model selection)**:
+       - **Validation Split**: Set `val_size` to split a portion of training data for validation. Choose ratio based on dataset size and task needs.
+       - **Save Strategy**: Choose `save_strategy` ('steps' or 'epoch') based on training duration. MUST ensure `eval_strategy` == `save_strategy`.
+       - **Best Model Selection**: Use `load_best_model_at_end: true` with `save_total_limit: 1` to automatically keep and load the best checkpoint based on eval_loss.
+    7. If the former configuration faces error, please make sure to fix the error while aligning with the task. If these two goals conflict, please prioritize fixing the error.
 
     ## Configuration Principle
     **ONLY include parameters you want to change from defaults**
@@ -360,7 +363,7 @@ finetune_coder:
     - **IMPORTANT Compatibility Rules**:
       - `pissa_init: true` is NOT compatible with DeepSpeed ZeRO-3. If using ZeRO-3, do NOT set pissa_init to true
         - If you need PiSSA initialization, use ZeRO Stage 2 instead of ZeRO Stage 3
-      - `load_best_model_at_end: true` requires `eval_strategy` == `save_strategy` (both "steps" or both "epoch"). If unsure, set `load_best_model_at_end: false`
+      - `load_best_model_at_end: true` requires `eval_strategy` == `save_strategy` (both "steps" or both "epoch"). Always set both to the same value.
 
     {% if force_think_token %}
     {% if has_think_token is defined and not has_think_token %}
@@ -675,10 +678,14 @@ runner_eval:
     ## Your Task
     Analyze the training run information and determine if the experiment succeeded.
 
-    ## Evaluation Criteria
+    ## Evaluation Criteria (for final_decision)
     1. **Execution Success**: Did training complete without errors? Check exit_code and model outputs.
-    2. **Training Quality**: If successful, is loss decreasing? Any signs of overfitting?
-    3. **Benchmark Performance**: If available, how does the model perform?
+    2. **Benchmark Execution**: Did benchmark run successfully? Check benchmark results availability.
+
+    ## Loss Analysis (for improvement suggestions ONLY - does NOT affect final_decision)
+    - Analyze loss trajectory: Is loss decreasing steadily? Any signs of overfitting?
+    - Use this information ONLY to provide suggestions in the "code" field
+    - Loss patterns should NEVER cause final_decision to be false
 
     ## Error Categories (if failed)
     - **OOM**: GPU memory exhaustion - suggest batch size/model changes
@@ -713,9 +720,9 @@ runner_eval:
     {{ benchmark_result }}
     ```
 
-    # Loss Summary
+    # Loss History (train loss and eval_loss if validation enabled)
     ```json
-    {{ loss_summary }}
+    {{ loss_history }}
     ```
     {% include "components.coder.finetune.prompts:runner_eval.train_output" %}
 
