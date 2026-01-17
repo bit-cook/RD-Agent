@@ -601,12 +601,14 @@ def render_generic(content: Any) -> None:
 
 def render_training_result(result: dict) -> None:
     training_metrics = result.get("training_metrics", {})
-    loss_history = training_metrics.get("loss_history", [])
+    loss_history = training_metrics.get("loss_history", {})
 
-    if loss_history:
+    # loss_history is Dict[str, List[Dict]] with "train" and "eval" keys
+    train_history = loss_history.get("train", []) if isinstance(loss_history, dict) else []
+    if train_history:
         fig = go.Figure()
-        steps = [entry.get("step", i) for i, entry in enumerate(loss_history)]
-        losses = [entry.get("loss", 0) for entry in loss_history]
+        steps = [entry.get("step", i) for i, entry in enumerate(train_history)]
+        losses = [entry.get("loss", 0) for entry in train_history]
         fig.add_trace(go.Scatter(x=steps, y=losses, mode="lines+markers", name="Loss"))
         fig.update_layout(title="Training Loss", xaxis_title="Step", yaxis_title="Loss", height=300)
         st.plotly_chart(fig, use_container_width=True)

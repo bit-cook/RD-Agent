@@ -209,13 +209,14 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
 
         # Build comprehensive result with training metrics and benchmark results
         # Note: "benchmark" is for agent (SOTA judgment), "benchmark_test" is for frontend only
+        train_history = loss_history.get("train", []) if loss_history else []
         implementation.running_info.result = {
             "benchmark": validation_result,  # Agent visible - used for SOTA judgment
             "benchmark_test": test_result,  # Agent invisible - frontend display only
             "training_metrics": {
                 "loss_history": loss_history,
-                "final_loss": loss_history[-1]["loss"] if loss_history else None,
-                "initial_loss": loss_history[0]["loss"] if loss_history else None,
+                "final_loss": train_history[-1]["loss"] if train_history else None,
+                "initial_loss": train_history[0]["loss"] if train_history else None,
             },
         }
         benchmark_result = validation_result  # For backward compatibility with feedback
@@ -239,7 +240,7 @@ class FTRunnerEvaluator(CoSTEEREvaluator):
         exit_code: int,
         model_files_exist: bool,
         benchmark_result: Optional[Dict] = None,
-        loss_history: Optional[List[Dict]] = None,
+        loss_history: Optional[Dict[str, List[Dict]]] = None,
         failed_stage: Optional[str] = None,
     ) -> CoSTEERSingleFeedback:
         """Generate LLM-based feedback for runner evaluation.
