@@ -624,7 +624,7 @@ def render_training_result(result: dict) -> None:
     # Validation benchmark ([:100]) - used for SOTA judgment
     benchmark = result.get("benchmark", {})
     if benchmark:
-        st.markdown("**Validation Benchmark ([:100]):**")
+        st.markdown("**Validation Benchmark**")
         # Detect format: old format has "accuracy_summary" at top level,
         # new format has benchmark names as keys with nested accuracy_summary
         if "accuracy_summary" in benchmark:
@@ -646,7 +646,7 @@ def render_training_result(result: dict) -> None:
     # Test benchmark ([100:200]) - frontend display only, not visible to agent
     benchmark_test = result.get("benchmark_test", {})
     if benchmark_test and benchmark_test != benchmark:  # Avoid duplicate display for small datasets
-        st.markdown("**Test Benchmark ([100:200]):**")
+        st.markdown("**Test Benchmark**")
         if "accuracy_summary" in benchmark_test:
             accuracy_summary = benchmark_test.get("accuracy_summary", {})
             if accuracy_summary:

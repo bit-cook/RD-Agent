@@ -19,93 +19,111 @@ unified_hypothesis_gen:
     # PART 1: DATA PROCESSING
     # ═══════════════════════════════════════════════════════════════════════════
 
-    ## 1.1 Available Processing Methods
+    ## 1.0 Core Principle: Less is More
 
-    These methods may require LLM API calls:
+    **Your Goal:** Create a **small, diverse, high-quality** dataset.
 
-    **General Methods**:
-    - Quality filtering: Remove low-quality samples based on perplexity, length, or coherence
-    - Deduplication: N-gram matching or embedding-based deduplication
-    - Diversity sampling: Select diverse samples to improve generalization
-    - Format normalization: Standardize input/output formats
-    - Category/difficulty balancing: Adjust proportions across categories or difficulty levels
+    ### The Three Rules
 
-    **Reasoning-Specific Methods**:
-    - Difficulty-based filtering: Assess problem difficulty relative to the base model (the model to be fine-tuned). Base model is not available, so use proxy metrics like reasoning path complexity (CoT length, backtracking steps) or cross-model disagreement (strong model correct + weak model incorrect → moderate difficulty). Focus on "boundary-difficulty" problems that are challenging but solvable for the base model.
-    - Answer-consistency filtering: Keep samples where majority-vote answer matches target answer
-    - CoT quality scoring: Construct a scoring function to score the quality of the CoT, and filter out the low-quality CoT
-    - Structural health check: Keep CoT with progressive depth, backtracking, and verification nodes; reject wide-shallow or straight-line reasoning
-    - Generative selection: Compare multiple solution summaries, come up with methods to select best one
+    1. **Quality over Quantity**: A smaller set of excellent samples beats a larger set of mediocre ones
+    2. **Diversity over Volume**: Cover different problem types, difficulty levels, and reasoning patterns
+    3. **Simplicity over Complexity**: Each processing step you add is a potential failure point
 
-    **Note**: You should try to make use of the datasets shown above to generate new training datasets. But if you think the datasets are not suitable for the task or you have better ideas, you can come up with your own approach (better based on the given seed datasets).
+    ### Warning Signs (When to Simplify)
 
-    ## 1.2 LLM Capabilities
+    If you observe any of these, your pipeline is probably over-engineered:
 
-    Most processing methods above require LLM API calls. The system provides model pools with load balancing:
+    - **Low retention**: Most samples are being filtered out
+    - **Empty output**: Debug mode produces very few or zero samples
+    - **Cascading failures**: One step's output causes the next step to fail
+    - **Diminishing returns**: Adding more processing but results don't improve
 
-    **Model Tiers (selected automatically at runtime):**
-    - **Strong models**: Complex tasks requiring advanced reasoning
-      - CoT generation/rewriting, reasoning expansion, difficult problem solving
-      - Mathematical reasoning, code generation, complex analysis
-    - **Weak/Fast models**: Simple, high-volume tasks
-      - Simple filtering, basic format conversion, quality scoring
-      - Deduplication, format validation
+    **When in doubt, do less. A simple pipeline that works beats a complex one that fails.**
 
-    **Note**: Do NOT specify exact model names in your hypothesis. Instead, describe which tier (strong/weak) should be used for each processing step. The actual model selection and load balancing is handled automatically by the system at runtime.
+    ## 1.1 Data Quality Assessment (Before Processing)
 
-    ## 1.3 Data Quality & CoT Requirements
+    **Step 1: Understand your data before processing it.**
 
-    **Principle: Data quality must match training objectives.**
+    | Dataset Quality | Action | Example |
+    |-----------------|--------|---------|
+    | High (structured CoT, correct format) | Use directly with minimal changes | Math datasets with step-by-step solutions |
+    | Medium (has reasoning, needs polish) | Targeted improvements only | Q&A with brief explanations |
+    | Low (no CoT, format issues) | Full processing needed | Direct answer-only datasets |
 
-    Analyze the dataset info carefully - check not just whether fields exist, but whether their **content quality** is sufficient for your goal.
+    **Key insight: High-quality data does NOT need heavy processing. Over-processing good data can degrade it.**
+
+    ## 1.2 Processing Methods
+
+    ### Code-Based Methods (For filtering and formatting)
+    - **Length filtering**: Remove samples exceeding context limit (DO NOT truncate)
+    - **Format validation**: Check required fields exist and are non-empty
+    - **Deduplication**: N-gram or exact match
+    - **Sampling**: Random or stratified by category
+
+    ### LLM-Based Methods (For content generation)
+
+    **✅ Core Operation: CoT Generation with Strong Models**
+
+    This is the most valuable use of LLM in data processing. High-quality CoT is essential for training reasoning ability.
+
+    - **Actively use strong models** to generate detailed, logical reasoning chains
+    - Quality of CoT directly impacts training effectiveness
+    - The cost of strong model calls is justified by better training data
+
+    **When to generate CoT:**
+    - Dataset lacks reasoning traces (direct answers only)
+    - Existing reasoning is shallow, unclear, or incomplete
+    - You want to ensure consistent high-quality reasoning format
+
+    **❌ Redundant Operations: Avoid These**
+    - LLM-based answer validation (inconsistent, expensive, adds little value)
+    - Multi-stage quality scoring (compounds errors, slow)
+    - LLM judging if CoT is "logically correct" (subjective, unreliable)
+    - Multiple LLM calls per sample for different purposes
+
+    **Key Distinction:**
+    - ✅ One high-quality LLM call per sample to generate CoT → Good investment
+    - ❌ Multiple LLM calls per sample (generate + validate + score + rewrite) → Wasteful
+
+    **Note**: Do NOT specify exact model names. Describe which tier (strong/weak) for each step. Model selection is automatic.
+
+    ## 1.3 CoT Generation Strategy
+
+    **Philosophy: Invest in quality CoT generation, not in redundant validation.**
 
     **CRITICAL: ALL training data MUST include Chain-of-Thought reasoning. No direct answers.**
 
-    ### 1.3.0 Quality Strategy
-    - **Augmentation/Rewrite**: Use LLM to generate/enhance reasoning (preferred)
-    - **Filter**: Remove low-quality samples
-    - Priority: augment > filter > direct use
+    **How to generate CoT:**
+    1. **Use strong model tier** - this is where quality matters most
+    2. Generate naturally - let the model reason step by step
+    3. Don't request specific format tags in the prompt (models may refuse)
+    4. Post-process to add required format (`<think>` tags) via code
 
-    {% if force_think_token %}
-    **Key**: ALL output must use `<think>[reasoning]</think>[answer]` format. The answer (after `</think>`) must follow **Benchmark Description**.
-    {% else %}
-    **Key**: Output must contain step-by-step reasoning. 
-    {% endif %}
-    **Follow the answer format specified in Benchmark Description.**
+    **Quality Assurance (Lightweight):**
+    - **Outcome-based check**: If CoT leads to correct final answer, accept it
+    - **For math/code**: Verify answer with tools (calculator, code execution), not LLM
+    - **Self-consistency (optional)**: Generate 2-3 chains, keep if majority agree on answer
 
-    ### 1.3.1 General Strategies
+    **What to avoid:**
+    - Using LLM to judge if reasoning is "good enough" (subjective, inconsistent)
+    - Rejecting samples because CoT style differs from expectation
+    - Adding validation steps that filter out valid samples
 
-    1. **Augmentation/Rewrite**: Use stronger models to enhance, expand, or rewrite content
-    2. **Direct Use**: Use data as-is if quality matches objectives
-    3. **Filter**: Keep only samples that meet quality threshold
+    ## 1.4 Diversity Sampling
 
-    Decision priority: augment/rewrite > filter > direct use with limitations acknowledged
+    **Why diversity matters:** Training on varied examples helps the model generalize.
 
-    ### 1.3.2 CoT Quality Assessment
+    **Implementation:**
+    1. Identify natural categories in your dataset (topic, difficulty, source, format)
+    2. Sample proportionally from each category rather than randomly from the whole
+    3. Prioritize coverage across categories over total volume
 
-    **IMPORTANT: CoT quality ≠ CoT length. Check README's `CoT Quality Assessment` section first!**
+    **Example:**
+    - Dataset has difficulty levels (easy/medium/hard)
+    - Avoid: Taking whatever comes first (may be 90% easy)
+    - Prefer: Sample balanced amounts from each level
 
-    Different datasets have different quality characteristics:
-    - **High-quality structured CoT**: Well-organized reasoning with clear step separation
-    - **Low-quality CoT**: Reasoning exists but lacks depth or coherence
-    - **Missing CoT**: Empty or minimal solutions that need generation
-
-    **Quality Decision Framework:**
-    1. **All raw data MUST be polished** - never use directly without enhancement
-    2. Check README's `CoT Quality Assessment` for `baseline_quality` and `polish_difficulty`
-    3. **High baseline** → focus on enrichment (add details, verify correctness)
-    4. **Low baseline** → full generation/rewrite needed
-    5. Follow `polish_strategy` in README for specific approach
-
-    ### 1.3.3 Quality Criteria & Task-Type Standards
-
-    **Multi-dimensional Quality Criteria:**
-    - **Structure Completeness**: Clear step separation, logical flow (JSON structure or "Step N:" markers)
-    - **Reasoning Coherence**: Steps logically connected, no jumps in reasoning
-    - **Answer Consistency**: Reasoning process supports and leads to final answer (calculation steps must match `\boxed{}` result)
-    - **Information Density**: No redundancy, relevant content only
-
-    ## 1.4 Length & Filtering
+    ## 1.5 Length & Filtering
 
     **Core Formula**: `total_tokens = input_tokens + cot_tokens + answer_tokens`
 
@@ -114,41 +132,30 @@ unified_hypothesis_gen:
     - Filter samples exceeding context limit (do NOT truncate)
     - Set `cutoff_len` based on Memory Constraints table
     - Maximize CoT length within constraints
-    - Never compress long CoT just to fit arbitrary limits
-    - Expand short CoT when context budget allows
-    - Use strong models for generating rich, detailed reasoning
 
-    ## 1.5 Output Format
+    ## 1.6 Output Format
 
-    **IMPORTANT: Read `dataset_info.json` description field carefully!** It contains critical information about data quality, field statistics, and recommended preprocessing approaches.
-
-    **Handling missing/empty fields:**
-    - Small portion missing (<10%) → Filter out
-    - Many samples missing → Consider augmentation/generation instead
-
-    Output filename: `data.json` (do NOT specify path, path handled by system). Use Alpaca format:
-
-    **CRITICAL: ALL training data MUST include Chain-of-Thought reasoning.**
+    Output filename: `data.json` (path handled by system). Use Alpaca format:
 
     ```json
     [
       {
-        "instruction": "...",
-        "input": "...",
+        "instruction": "problem statement",
+        "input": "optional additional context",
     {% if force_think_token %}
-        "output": "<think>[reasoning]</think>[answer]"
+        "output": "<think>[step-by-step reasoning]</think>[final answer]"
     {% else %}
-        "output": "[step-by-step reasoning]...[answer]"
+        "output": "[step-by-step reasoning]...[final answer]"
     {% endif %}
       }
     ]
     ```
 
     {% if force_think_token %}
-    **Note**: The `<think>` tags must be added by CODE, not requested in LLM prompts (models refuse direct `<think>` requests).
-    The **answer** (content AFTER `</think>`) must follow **Benchmark Description**.
+    **Note**: `<think>` tags are added by code post-processing, not requested in LLM prompts.
+    The **answer** (after `</think>`) must follow **Benchmark Description**.
     {% else %}
-    **Note**: Focus on reasoning quality, not format. Let LLM generate naturally. And DO NOT include `<think>` tags.
+    **Note**: Focus on reasoning quality. Let LLM generate naturally. DO NOT include `<think>` tags.
     {% endif %}
 
     **Answer format**: Follow the format specified in Benchmark Description.
