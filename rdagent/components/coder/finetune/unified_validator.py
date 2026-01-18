@@ -106,6 +106,7 @@ class LLMConfigValidator:
         These parameters are hardcoded to ensure:
         - overwrite_cache: Avoid HF datasets cache lock contention
         - save_only_model: Save disk space
+        - save_total_limit: Limit checkpoint count to save disk space (especially for full finetuning)
         - output_dir: Standardize model output location for downstream processing
         - per_device_eval_batch_size: Prevent OOM during evaluation (eval has no gradient checkpointing)
         """
@@ -115,12 +116,13 @@ class LLMConfigValidator:
 
         config["overwrite_cache"] = True
         config["save_only_model"] = True
+        config["save_total_limit"] = 1  # CRITICAL: Limit checkpoints to save disk space
         config["output_dir"] = "./output"
         config["per_device_eval_batch_size"] = 1  # Prevent OOM: eval doesn't benefit from gradient checkpointing
 
         logger.info(
             "Injected required parameters: overwrite_cache=True, save_only_model=True, "
-            "output_dir=./output, per_device_eval_batch_size=1"
+            "save_total_limit=1, output_dir=./output, per_device_eval_batch_size=1"
         )
         return yaml.dump(config, default_flow_style=False, sort_keys=False)
 
