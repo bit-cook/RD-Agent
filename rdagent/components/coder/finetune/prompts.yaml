@@ -345,7 +345,7 @@ finetune_coder:
   user: |-
     ## Path Configuration
     - dataset_dir: "{{ datasets_path }}"
-    - output_dir: "{{ workspace_path }}output"
+    - output_dir: "./output" (auto-injected, you can omit this)
     - model_name_or_path: "{{ models_path }}{{ base_model }}"
     - tokenized_path: "{{ workspace_path }}tokenized_cache"
 

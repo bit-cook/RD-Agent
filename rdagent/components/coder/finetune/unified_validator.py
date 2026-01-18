@@ -106,6 +106,7 @@ class LLMConfigValidator:
         These parameters are hardcoded to ensure:
         - overwrite_cache: Avoid HF datasets cache lock contention
         - save_only_model: Save disk space
+        - output_dir: Standardize model output location for downstream processing
         """
         config = yaml.safe_load(config_yaml)
         if not isinstance(config, dict):
@@ -113,8 +114,9 @@ class LLMConfigValidator:
 
         config["overwrite_cache"] = True
         config["save_only_model"] = True
+        config["output_dir"] = "./output"
 
-        logger.info("Injected required parameters: overwrite_cache=True, save_only_model=True")
+        logger.info("Injected required parameters: overwrite_cache=True, save_only_model=True, output_dir=./output")
         return yaml.dump(config, default_flow_style=False, sort_keys=False)
 
     def _get_supported_parameters(self) -> Set[str]:
