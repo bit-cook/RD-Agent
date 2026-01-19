@@ -118,9 +118,14 @@ LOG_TRACE_PATH='$trace_path'
 WORKSPACE_PATH='$task_workspace'
 FT_TARGET_BENCHMARK='$benchmark'
 EOF
-    # Write benchmark_desc separately to handle special characters properly
+    # Escape shell special characters for double-quoted string: \ " ` $
     if [[ -n "$benchmark_desc" ]]; then
-        printf "FT_BENCHMARK_DESCRIPTION=%s\n" "'$benchmark_desc'" >> "$TASK_ENV_FILE"
+        escaped_desc="$benchmark_desc"
+        escaped_desc="${escaped_desc//\\/\\\\}"  # \ -> \\
+        escaped_desc="${escaped_desc//\"/\\\"}"  # " -> \"
+        escaped_desc="${escaped_desc//\`/\\\`}"  # ` -> \`
+        escaped_desc="${escaped_desc//\$/\\\$}"  # $ -> \$
+        echo "FT_BENCHMARK_DESCRIPTION=\"$escaped_desc\"" >> "$TASK_ENV_FILE"
     fi
     [[ -n "$port" ]] && echo "OPENAI_API_BASE='http://localhost:$port'" >> "$TASK_ENV_FILE"
 
