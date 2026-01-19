@@ -26,7 +26,7 @@ from rdagent.components.coder.finetune.conf import (
     get_workspace_prefix,
     inject_data_stats,
 )
-from rdagent.components.coder.finetune.unified_validator import LLMConfigValidator
+from rdagent.components.coder.finetune.unified_validator import LLMConfigValidator, SYSTEM_MANAGED_PARAMS
 from rdagent.core.evolving_framework import QueriedKnowledge
 from rdagent.core.experiment import FBWorkspace, Task
 from rdagent.log import rdagent_logger as logger
@@ -363,6 +363,7 @@ class FTCoderEvaluator(CoSTEEREvaluator):
 
         system_prompt = T(".prompts:finetune_eval.system").r(
             queried_similar_successful_knowledge=queried_similar_successful_knowledge,
+            system_managed_params=SYSTEM_MANAGED_PARAMS,
         )
         user_prompt = T(".prompts:finetune_eval.user").r(
             scenario=self.scen.get_scenario_all_desc(),

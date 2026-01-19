@@ -15,6 +15,9 @@ data_coder:
     The following datasets are available for processing:
     {{ dataset_info }}
 
+    ## 1.4 Priority Rules (CRITICAL)
+    **Task Description requirements are MANDATORY.** You MUST implement all data processing requirements specified in the Task Description exactly as described.
+
     # Part 2: Output Specification
 
     ## 2.1 Alpaca Format Definition
@@ -305,10 +308,7 @@ finetune_coder:
     {% endfor %}
 
     ## Priority Rules (CRITICAL)
-    When generating the training configuration:
-    1. **Task Description parameters are MANDATORY** - If the task description specifies any hyperparameter (epochs, learning_rate, batch_size, cutoff_len, etc.), you MUST use exactly that value
-    2. Guidelines below are **defaults only** - They apply ONLY when task description does not specify a value
-    3. Never let general guidelines override specific task requirements
+    **Task Description parameters are MANDATORY.** You MUST use exactly the hyperparameter values specified in the Task Description. Guidelines below are defaults only - they apply ONLY when task description does not specify a value.
 
     ## Requirements
     1. Create a LlamaFactory configuration file named `train.yaml`
@@ -458,8 +458,18 @@ finetune_eval:
     3. Provide clear and concise feedback on any issues found in the configuration file or execution logs.
     4. Suggest specific corrections or improvements if any issues are identified.
 
+    ## Task Parameter Alignment Verification
+    You MUST verify that train.yaml parameters match task description requirements.
+
+    **IMPORTANT EXCEPTIONS - System-Managed Parameters**:
+    These parameters are automatically set by the system and should NOT be checked for alignment:
+    - {{ system_managed_params | join(", ") }}
+
+    If a parameter from task description is missing because LlamaFactory doesn't support it, this is expected, not a mismatch.
+
     You must give a false final decision in following cases:
-    - The execution of the fails with non-zero exit code.
+    - The execution fails with non-zero exit code.
+    - Configuration parameters (excluding system-managed ones) do NOT match task description requirements.
     
     {% if queried_similar_successful_knowledge|length != 0 %}
     ### Similar Successful Implementations to help training config Improvement
@@ -475,7 +485,6 @@ finetune_eval:
 
     # Important Notice
     - You may find that the execution is short with limited data and iterations. This is expected as we are only validating the configuration file's correctness and not performing full-scale training. Don't treat this as a failure. Also do not put this information in your feedback.
-    - Training duration parameters (`num_train_epochs`, `max_steps`) in the task description are RECOMMENDATIONS, not hard requirements. If the configuration uses slightly different values (e.g., 3-4 epochs instead of 1-2), do NOT fail the evaluation for this reason alone. Focus on whether the configuration is technically correct and will run successfully.
 
     ## Output Format
     Please respond with your feedback in the following JSON format without anything else.
@@ -551,6 +560,18 @@ data_eval:
     - **Semantic**: instruction should be a question/task, output should be an answer/response
     - **Alignment**: Data should match the task's training objective
 
+    ## CRITICAL: Task Requirement Alignment Verification
+    You MUST verify that the data processing script and output match task description requirements:
+    1. EXTRACT all data processing requirements from task description
+       - Look for data format specifications (e.g., "Alpaca format", "ShareGPT format")
+       - Look for content requirements (e.g., "add system prompt", "include few-shot examples")
+       - Look for filtering criteria (e.g., "filter by answer consistency", "remove samples longer than X")
+       - Look for CoT/reasoning requirements (e.g., "generate step-by-step reasoning")
+    2. COMPARE with actual implementation and generated data samples
+    3. If ANY mismatch found between task requirements and actual output:
+       - Report the mismatch in "return_checking" field
+       - Set final_decision to FALSE
+
     ## CoT Quality Evaluation (Task-Adaptive)
     **IMPORTANT: CoT quality ≠ CoT length. Adapt criteria based on task type from README metadata.**
 
@@ -621,6 +642,7 @@ data_eval:
       - Zero samples are generated
       {% if force_think_token %}- **ANY sample missing `<think>` or `</think>` tags (HARD FAIL)**{% else %}- **ANY sample missing reasoning content (just direct answer)**{% endif %}
       - Data format is fundamentally broken
+      - **Data does NOT match task description requirements**
 
     - **Do NOT reject** for:
       - Low sample count in debug mode (expected)

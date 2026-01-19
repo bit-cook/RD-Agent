@@ -27,6 +27,17 @@ from rdagent.scenarios.finetune.scen.llama_factory_manager import LLaMAFactory_m
 
 DIRNAME = Path(__file__).absolute().resolve().parent
 
+# System-managed parameters that are automatically injected during validation.
+# These should NOT be checked for alignment in eval prompts.
+# Single source of truth: modify here to change injected parameters.
+SYSTEM_MANAGED_PARAMS = {
+    "overwrite_cache": True,  # Avoid HF datasets cache lock contention
+    "save_only_model": True,  # Save disk space
+    "save_total_limit": 1,  # Limit checkpoint count to save disk space
+    "output_dir": "./output",  # Standardize model output location
+    "per_device_eval_batch_size": 1,  # Prevent OOM during evaluation
+}
+
 
 @dataclass
 class ValidationResult:
@@ -103,27 +114,15 @@ class LLMConfigValidator:
     def _inject_required_parameters(self, config_yaml: str) -> str:
         """Inject required parameters for multi-task environments.
 
-        These parameters are hardcoded to ensure:
-        - overwrite_cache: Avoid HF datasets cache lock contention
-        - save_only_model: Save disk space
-        - save_total_limit: Limit checkpoint count to save disk space (especially for full finetuning)
-        - output_dir: Standardize model output location for downstream processing
-        - per_device_eval_batch_size: Prevent OOM during evaluation (eval has no gradient checkpointing)
+        Uses SYSTEM_MANAGED_PARAMS as the single source of truth.
         """
         config = yaml.safe_load(config_yaml)
         if not isinstance(config, dict):
             return config_yaml
 
-        config["overwrite_cache"] = True
-        config["save_only_model"] = True
-        config["save_total_limit"] = 1  # CRITICAL: Limit checkpoints to save disk space
-        config["output_dir"] = "./output"
-        config["per_device_eval_batch_size"] = 1  # Prevent OOM: eval doesn't benefit from gradient checkpointing
+        config.update(SYSTEM_MANAGED_PARAMS)
 
-        logger.info(
-            "Injected required parameters: overwrite_cache=True, save_only_model=True, "
-            "save_total_limit=1, output_dir=./output, per_device_eval_batch_size=1"
-        )
+        logger.info(f"Injected required parameters: {SYSTEM_MANAGED_PARAMS}")
         return yaml.dump(config, default_flow_style=False, sort_keys=False)
 
     def _get_supported_parameters(self) -> Set[str]:
