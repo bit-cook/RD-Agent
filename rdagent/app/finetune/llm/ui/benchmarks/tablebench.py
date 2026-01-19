@@ -10,7 +10,14 @@ class TableBenchProcessor(BenchmarkProcessor):
         "fact": "accuracy",
         "numerical": "accuracy",
         "analysis": "accuracy",
-        "visualization": "f1_score",
+        "visualization": "Pass@1",  # TableBench visualization uses Pass@1 as core metric
+    }
+
+    # TableBench-specific metrics where higher is better
+    HIGHER_IS_BETTER = BenchmarkProcessor.HIGHER_IS_BETTER | {
+        "Pass@1",
+        "ECR@1",
+        "Parse@1",
     }
 
     @classmethod
