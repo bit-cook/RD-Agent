@@ -21,13 +21,12 @@ AutoRL-Bench/
 │   │   ├── base.py
 │   │   └── gsm8k.py
 │   └── evaluator.py        # 评测器
-│
-├── agent/                  # Demo Agent
-│   ├── simple_agent.py     # LLM 全自主 Agent
-│   ├── tools.py            # Agent 可用工具
-│   ├── llm.py              # LLM 客户端 (重试机制)
-│   └── prompts.py          # System Prompt
-│
+|---env/
+|     entry.py
+|     training/
+|        Dockerfile
+|     eval/
+|        Dockerfile
 ├── assets/                 # 资源 (不上传 git)
 │   ├── data/
 │   │   ├── gsm8k/          # 数学数据集
@@ -35,6 +34,45 @@ AutoRL-Bench/
 │   └── models/
 │       └── Qwen2.5-3B-Instruct/
 │
+│
+├── log/                    # 服务日志
+│   ├── server.log
+│   └── agent.log
+│
+├── configs/                # 配置文件
+└── test/                   # 测试脚本
+```
+
+### Intefaces
+
+#### CLI interfaces
+- TODO:
+  - Interfaces:
+    - e.g. `python -m rdagent.scenario.rl.eval.<scenario-name>.server`
+    - ... download data ...
+
+- Who will implement the Agent code
+  - (We choose this)**RD-Agent is reponsible for the agent code**
+    - e.g. `python -m rdagent.scenario.rl.env.entry  --type "eval"  --workspace ..`.
+      - there may be a implied entry in the workspace like `<workspace>/agent.py`
+  - benchmark will provide the agent code
+    - `python -m rdagent.scenario.rl.env.entry  --type "eval"  --workspace ..`.
+      - It will mount agent code into the workspace.
+      - benchmark's agent code will load a model in a specific folder like `<workspace>/model`
+
+- Training model:
+  - `python -m rdagent.scenario.rl.env.entry  --type "training"  --workspace ..`.
+    - the workspace will contain a entry named "train.py"
+
+#### RESTful interface
+
+
+
+#### Filesystem interface
+
+
+```
+
 ├── workspace/              # Agent 工作区 (不上传 git)
 │   └── gsm8k_YYYYMMDD_HHMMSS/
 │       ├── logs/           # 给人看的日志
@@ -44,13 +82,13 @@ AutoRL-Bench/
 │       └── work/           # Agent 的工作目录
 │           ├── train.py
 │           └── output/     # 训练后的模型
+
+├    ── agent/                  # Demo Agent
+│       ├── simple_agent.py     # LLM 全自主 Agent
+│       ├── tools.py            # Agent 可用工具
+│       ├── llm.py              # LLM 客户端 (重试机制)
+│       └── prompts.py          # System Prompt
 │
-├── log/                    # 服务日志
-│   ├── server.log
-│   └── agent.log
-│
-├── configs/                # 配置文件
-└── test/                   # 测试脚本
 ```
 
 ## 3. API 设计
