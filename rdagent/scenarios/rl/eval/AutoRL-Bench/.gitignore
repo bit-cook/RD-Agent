@@ -1,0 +1,21 @@
+# Ignore large files
+assets/models/
+assets/data/
+*.bin
+*.safetensors
+__pycache__/
+*.pyc
+.DS_Store
+
+# External libraries (git clone, not uploaded)
+libs/
+
+# Logs
+log/
+
+# Runtime directories
+workspace/
+results/
+
+# Documentation (internal notes)
+doc/
