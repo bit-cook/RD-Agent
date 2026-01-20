@@ -1575,14 +1575,25 @@ class BenchmarkDockerEnv(DockerEnv):
 class RLDockerConf(DockerConf):
     model_config = SettingsConfigDict(env_prefix="RL_DOCKER_")
 
-    # TODO: the dockerfile path (including "AutoRL-Bench") is dynamic due to we have different scenarios
     build_from_dockerfile: bool = True
     dockerfile_folder_path: Path = (
-        Path(__file__).parent.parent / "scenarios" / "rl" / "eval" / "AutoRL-Bench" / "env" / "train"
+        Path(__file__).parent.parent / "scenarios" / "rl" / "eval" / "autorl_bench" / "env" / "train"
     )
     image: str = "local_rl:latest"
     mount_path: str = "/workspace/"
     default_entry: str = "python main.py"
+
+    # 挂载 assets 目录 (只读)
+    extra_volumes: dict = {
+        str(Path(__file__).parent.parent / "scenarios" / "rl" / "eval" / "autorl_bench" / "assets" / "data"): {
+            "bind": "/data",
+            "mode": "ro"
+        },
+        str(Path(__file__).parent.parent / "scenarios" / "rl" / "eval" / "autorl_bench" / "assets" / "models"): {
+            "bind": "/models",
+            "mode": "ro"
+        },
+    }
 
     running_timeout_period: int | None = 3600
     mem_limit: str | None = "48g"
