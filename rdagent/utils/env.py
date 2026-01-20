@@ -452,7 +452,7 @@ class Env(Generic[ASpecificEnvConf]):
                 running_extra_volume,
             )
         if self.conf.redirect_stdout_to_file:
-            stdout = log_file.read_text()
+            stdout = log_file.read_text(errors='replace')
             log_file.unlink(missing_ok=True)
             result.update_stdout(stdout)
         if str(Path(local_path).resolve()) in result.stdout:
