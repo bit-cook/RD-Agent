@@ -23,11 +23,6 @@ AutoRL-Bench/
 │   ├── scenarios/          # 场景定义 (4个字段: model_path, data_path, baseline, metric)
 │   └── evaluator.py        # 评测器 (封装 Inspect)
 │
-├── agents/                 # Agent 实现 (ours + others)
-│   ├── rdagent/            # (ours) 模仿 RD-Agent
-│   │   └── ...
-│   └── xxx_agent/          # (others) 其他人的 Agent
-│       └── ...
 │
 ├── env/                    # 执行环境 (可 Docker 隔离)
 │   ├── entry.py            # 统一入口
@@ -36,19 +31,10 @@ AutoRL-Bench/
 │   └── eval/
 │       └── Dockerfile
 │
-├── assets/                 # 资源 (不上传 git)
-│   ├── data/               # 数据集
-│   └── models/             # 基础模型
-│
-├── libs/                   # RL 训练框架 (不上传 git)
+├── libs(in docker)/                   # RL 训练框架 (不上传 git)
 │   ├── verl/               # git clone 预装
 │   ├── trl/
 │   └── ...                 # Agent 可用，也可自己拉 (不建议)
-│
-├── workspace/              # 工作区 (不上传 git)
-│   └── {scenario}_{timestamp}/
-│       ├── code/           # 不限制 (config.yaml + 调用 libs/)
-│       └── output/model/   # 必须有，评测用
 │
 ├── results/                # Benchmark 输出 (固定位置)
 │   └── {scenario}_{timestamp}/
@@ -57,6 +43,21 @@ AutoRL-Bench/
 ├── log/                    # (ours) 服务日志
 ├── test/                   # (ours) 测试脚本
 └── configs/                # 配置文件
+
+------- Not part of the repo
+├── assets/                 # 资源 (不上传 git)
+│   ├── data/               # 数据集
+│   └── models/             # 基础模型
+│
+├── workspace/              # 工作区 (不上传 git)
+│   └── {scenario}_{timestamp}/
+│       ├── code/           # 不限制 (config.yaml + 调用 libs/)
+│       └── output/model/   # 必须有，评测用
+├   ── agents/                 # Agent 实现 (ours + others)
+│      ├── rdagent/            # (ours) 模仿 RD-Agent
+│      │   └── ...
+│      └── xxx_agent/          # (others) 其他人的 Agent
+│          └── ...
 ```
 
 ---

@@ -801,6 +801,7 @@ class DockerConf(EnvConf):
     retry_wait_seconds: int = 10  # retry wait seconds for the docker run
 
     terminal_tail_lines: int = 20
+    save_logs_to_file: bool = False  # keep the behavior before
 
     @model_validator(mode="after")
     def populate_exclude_chmod_paths(self) -> "DockerConf":
@@ -1568,4 +1569,30 @@ class BenchmarkDockerEnv(DockerEnv):
     """
 
     def __init__(self, conf: DockerConf = BenchmarkDockerConf()):
+        super().__init__(conf)
+
+
+class RLDockerConf(DockerConf):
+    model_config = SettingsConfigDict(env_prefix="RL_DOCKER_")
+
+    # TODO: the dockerfile path (including "AutoRL-Bench") is dynamic due to we have different scenarios
+    build_from_dockerfile: bool = True
+    dockerfile_folder_path: Path = (
+        Path(__file__).parent.parent / "scenarios" / "rl" / "eval" / "AutoRL-Bench" / "env" / "train"
+    )
+    image: str = "local_rl:latest"
+    mount_path: str = "/workspace/"
+    default_entry: str = "python main.py"
+
+    running_timeout_period: int | None = 3600
+    mem_limit: str | None = "48g"
+    shm_size: str | None = "16g"
+    enable_gpu: bool = True
+    enable_cache: bool = False
+
+
+class RLDockerEnv(DockerEnv):
+    """RL Docker Environment"""
+
+    def __init__(self, conf: DockerConf = RLDockerConf()):
         super().__init__(conf)
