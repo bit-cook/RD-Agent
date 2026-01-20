@@ -1,25 +1,7 @@
-# GSM8K Scenario Configuration
-# 
-# This file configures the GSM8K math benchmark scenario.
-# You can override default paths here.
+# GSM8K 场景配置 - 只需要 4 个字段
 
-# Scenario info
-id: gsm8k
-name: "GSM8K Math RL"
-description: "Grade School Math 8K - Train a model to solve math word problems using RL"
-type: offline
-
-# Model configuration
-base_model: "Qwen/Qwen2.5-7B"
-# base_model_path: "~/.autorl_bench/models/Qwen2.5-7B"  # Auto-generated from base_model
-
-# Data configuration
-# data_dir: "~/.autorl_bench/data/gsm8k"  # Default path
-
-# Evaluation configuration
-baseline_score: 45.0  # Baseline model accuracy (%)
-eval_metric: accuracy
-
-# Reward configuration
-reward_type: binary  # 1.0 for correct, 0.0 for wrong
+base_model_path: "assets/models/Qwen2.5-3B-Instruct"
+train_data_path: "assets/data/gsm8k/train.jsonl"
+baseline_score: 62.47
+metric: "accuracy"
 
