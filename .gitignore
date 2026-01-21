@@ -185,3 +185,6 @@ static/
 AGENTS.md
 
 scripts/
+
+# AutoRL-Bench runs
+rdagent/scenarios/rl/eval/autorl_bench/runs/
