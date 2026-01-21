@@ -110,6 +110,7 @@ data_coder:
     Total output samples: {actual_output}
     Sampled data size from raw: {sampled_count} / {raw_count}
     Debug samples processed: {debug_processed_count}
+    Estimated full output: ~{int(actual_output / debug_processed_count * sampled_count)}
     Output file: {{ workspace_path }}data.json
     =============================
 
@@ -318,11 +319,14 @@ finetune_coder:
     5. **Adaptive Logging Configuration (CRITICAL)**:
        - Set `logging_strategy` to 'steps' for consistent monitoring
        - Calculate `logging_steps` adaptively:
-         * Estimate total_steps = (num_samples × num_epochs) / (batch_size × gradient_accumulation_steps × num_gpus)
+         * Check `stdout_summary` in data_stats for `Estimated full output` (NOT `total_samples` which is debug mode count)
+         * total_steps = estimated_full × num_epochs / (batch_size × gradient_accumulation_steps × num_gpus)
          * Target 20-50 log entries total
     6. **Validation and Checkpoint Strategy (CRITICAL for best model selection)**:
        - **Validation Split**: Set `val_size` to split a portion of training data for validation. Choose ratio based on dataset size and task needs.
        - **Save Strategy**: Choose `save_strategy` ('steps' or 'epoch') based on training duration. MUST ensure `eval_strategy` == `save_strategy`.
+        - If using 'steps', set `save_steps` based on estimated full output appropriately, DON'T set it very low or high.
+        - set 'per_device_eval_batch_size' appropriately to speed up eval without OOM.
        - **Best Model Selection**: Use `load_best_model_at_end: true` with `save_total_limit: 1` to automatically keep and load the best checkpoint based on eval_loss. Note: `save_total_limit` will be force-injected to 1.
     7. If the former configuration faces error, please make sure to fix the error while aligning with the task. If these two goals conflict, please prioritize fixing the error.
 
