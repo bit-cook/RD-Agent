@@ -4,22 +4,23 @@ from rdagent.components.coder.CoSTEER.evolving_strategy import EvolvingStrategy
 from rdagent.core.conf import ExtendedBaseSettings
 from rdagent.core.experiment import FBWorkspace, Task
 from rdagent.core.scenario import Scenario
-from rdagent.components.coder.CoSTEER.settings import CoSTEERSettings
+from rdagent.components.coder.CoSTEER.config import CoSTEERSettings
 from rdagent.components.coder.CoSTEER.evaluators import CoSTEERSingleFeedback
 from rdagent.components.coder.CoSTEER.knowledge_management import CoSTEERQueriedKnowledge
+from rdagent.components.coder.CoSTEER.evolving_strategy import MultiProcessEvolvingStrategy
 from typing import Callable, Any
 
 class RLCoderCoSTEERSettings(CoSTEERSettings):
     """RL Coder CoSTEER dedicated settings."""
     pass
 
-class RLEvolvingStrategy(EvolvingStrategy):
+class RLEvolvingStrategy(MultiProcessEvolvingStrategy):
     """RL specific evolving strategy."""
 
-    def implement_func_list(self) -> list[Callable]:
-        return [self.implement_rl_code]
+    def __init__(self, scen: Scenario, settings: CoSTEERSettings, improve_mode: bool = False):
+        super().__init__(scen, settings, improve_mode)
 
-    def implement_rl_code(
+    def implement_one_task(
         self,
         target_task: Task,
         queried_knowledge: CoSTEERQueriedKnowledge | None = None,
@@ -59,6 +60,8 @@ for i in range(1000):
     if terminated or truncated:
         obs, info = env.reset()
 """
+        # TODO: use AIDER (similar to CLaude Code & GEMINI-CLI) to directly generate code in workspace
+        # https://aider.chat/docs/scripting.html#command-line
         return {"main.py": example_rl_code}
 
 
@@ -95,7 +98,6 @@ class RLCoSTEER(CoSTEER):
             settings=settings,
             eva=eva,
             es=es,
-            evolving_version=1,
             scen=scen,
             max_loop=5,
             stop_eval_chain_on_fail=False,
