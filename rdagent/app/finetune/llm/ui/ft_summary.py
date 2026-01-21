@@ -185,9 +185,9 @@ def get_loop_status(task_path: Path, loop_id: int) -> tuple[str, float | None, f
         metric_display = f"{metric_name} {arrow}"
         # Format: "val/test" or just "val" if no test
         if test_score is not None:
-            status_str = f"{val_score:.1f}/{test_score:.1f}"
+            status_str = f"{val_score:.2f}/{test_score:.2f}"
         else:
-            status_str = f"{val_score:.1f}"
+            status_str = f"{val_score:.2f}"
         return status_str, val_score, test_score, metric_display, feedback_decision, higher_is_better
 
     # Check feedback stage (no benchmark result, use feedback decision directly)
@@ -254,9 +254,9 @@ def get_job_summary_df(job_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         val_baseline = baseline_scores.get("validation")
         test_baseline = baseline_scores.get("test")
         if val_baseline and test_baseline:
-            row["Baseline"] = f"{val_baseline[1]:.1f}/{test_baseline[1]:.1f}"
+            row["Baseline"] = f"{val_baseline[1]:.2f}/{test_baseline[1]:.2f}"
         elif val_baseline:
-            row["Baseline"] = f"{val_baseline[1]:.1f}"
+            row["Baseline"] = f"{val_baseline[1]:.2f}"
         else:
             row["Baseline"] = "-"
         decision_row["Baseline"] = None
@@ -286,9 +286,9 @@ def get_job_summary_df(job_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
         # Show best validation and test scores
         if best_val_score is not None and best_test_score is not None:
-            row["Best"] = f"{best_val_score:.1f}/{best_test_score:.1f}"
+            row["Best"] = f"{best_val_score:.2f}/{best_test_score:.2f}"
         elif best_val_score is not None:
-            row["Best"] = f"{best_val_score:.1f}"
+            row["Best"] = f"{best_val_score:.2f}"
         else:
             row["Best"] = "-"
         row["Metric"] = best_metric if best_metric else "-"
