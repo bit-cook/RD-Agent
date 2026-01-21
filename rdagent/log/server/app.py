@@ -152,9 +152,9 @@ def upload_file():
     # time control parameters
     if scenario != "Finance Data Building (Reports)":
         if loop_n:
-            cmds += ["--loop_n", loop_n]
+            cmds += ["--loop-n", loop_n]
     if all_duration:
-        cmds += ["--timeout", f"{all_duration}h"]
+        cmds += ["--all-duration", f"{all_duration}h"]
 
     app.logger.info(f"Started process for {log_trace_path} with parameters: {cmds}")
     with stdout_path.open("w") as log_file:
