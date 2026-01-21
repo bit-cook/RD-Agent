@@ -1,2 +1,0 @@
-# AutoRL-Bench Demo Agent
-

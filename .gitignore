@@ -188,3 +188,6 @@ scripts/
 
 # AutoRL-Bench runs
 rdagent/scenarios/rl/eval/autorl_bench/runs/
+
+# RL workspace
+rdagent/scenarios/rl/eval/autorl_bench/example_workspace/

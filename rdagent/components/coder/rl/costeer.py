@@ -1,4 +1,4 @@
-"""RL CoSTEER - Code generation component for RL post-training (mock implementation)"""
+"""RL CoSTEER - Code generation component for RL post-training"""
 
 from typing import Generator
 
@@ -10,6 +10,9 @@ from rdagent.components.coder.CoSTEER.knowledge_management import CoSTEERQueried
 from rdagent.core.evolving_agent import EvolvingStrategy, EvoStep
 from rdagent.core.experiment import FBWorkspace, Task
 from rdagent.core.scenario import Scenario
+from rdagent.oai.llm_utils import APIBackend
+from rdagent.utils.agent.tpl import T
+from rdagent.log import rdagent_logger as logger
 
 
 class RLCoderCoSTEERSettings(CoSTEERSettings):
@@ -18,7 +21,7 @@ class RLCoderCoSTEERSettings(CoSTEERSettings):
 
 
 class RLEvolvingStrategy(EvolvingStrategy):
-    """Simple RL code generation strategy (mock, no knowledge dependency)."""
+    """RL code generation strategy using LLM."""
 
     def __init__(self, scen: Scenario, settings: CoSTEERSettings):
         self.scen = scen
@@ -32,22 +35,51 @@ class RLEvolvingStrategy(EvolvingStrategy):
         evolving_trace: list[EvoStep] = [],
         **kwargs,
     ) -> Generator[EvolvingItem, EvolvingItem, None]:
-        """Simple evolve: generate mock code for all tasks."""
-        # Generate mock code for each task
+        """Generate code for all tasks using LLM."""
         for index, target_task in enumerate(evo.sub_tasks):
-            mock_code = self._generate_mock_code(target_task)
+            code = self._generate_code(target_task, evolving_trace)
             if evo.sub_workspace_list[index] is None:
                 evo.sub_workspace_list[index] = evo.experiment_workspace
-            evo.sub_workspace_list[index].inject_files(**mock_code)
+            evo.sub_workspace_list[index].inject_files(**code)
 
-        # Yield once and done
         evo = yield evo
         return
 
-    def _generate_mock_code(self, task: Task) -> dict[str, str]:
-        """Generate mock RL training code."""
-        # TODO: 接入 LLM 生成代码
-        mock_code = '''import gymnasium as gym
+    def _generate_code(self, task: Task, evolving_trace: list[EvoStep] = []) -> dict[str, str]:
+        """Generate RL training code using LLM."""
+        # 获取上轮反馈
+        feedback = None
+        if evolving_trace:
+            last_step = evolving_trace[-1]
+            if hasattr(last_step, 'feedback') and last_step.feedback:
+                feedback = str(last_step.feedback)
+
+        # 构造 prompt
+        system_prompt = T(".prompts:rl_coder.system").r()
+        user_prompt = T(".prompts:rl_coder.user").r(
+            task_description=task.description if hasattr(task, 'description') else str(task),
+            model_path=task.model_path if hasattr(task, 'model_path') else "/models",
+            hypothesis=str(task.name) if hasattr(task, 'name') else "Train RL model",
+            feedback=feedback,
+        )
+
+        # 调用 LLM
+        try:
+            session = APIBackend().build_chat_session(session_system_prompt=system_prompt)
+            code = session.build_chat_completion(
+                user_prompt=user_prompt,
+                json_mode=False,
+                code_block_language="python",
+            )
+            logger.info(f"LLM generated code:\n{code[:200]}...")
+            return {"main.py": code}
+        except Exception as e:
+            logger.warning(f"LLM call failed: {e}, using mock code")
+            return self._mock_code()
+
+    def _mock_code(self) -> dict[str, str]:
+        """Fallback mock code."""
+        return {"main.py": '''import gymnasium as gym
 from stable_baselines3 import PPO
 
 env = gym.make("CartPole-v1")
@@ -55,8 +87,7 @@ model = PPO("MlpPolicy", env, verbose=1)
 model.learn(total_timesteps=1000)
 model.save("ppo_cartpole")
 print("Training completed!")
-'''
-        return {"main.py": mock_code}
+'''}
 
 
 class RLCoderEvaluator:
@@ -83,7 +114,7 @@ class RLCoderEvaluator:
 
 
 class RLCoSTEER(CoSTEER):
-    """RL CoSTEER - orchestrates code generation and evaluation (mock)."""
+    """RL CoSTEER - orchestrates code generation and evaluation."""
 
     def __init__(self, scen: Scenario, *args, **kwargs) -> None:
         settings = RLCoderCoSTEERSettings()
@@ -96,7 +127,7 @@ class RLCoSTEER(CoSTEER):
             eva=eva,
             es=es,
             scen=scen,
-            max_loop=1,  # Mock 只需要 1 轮
+            max_loop=1,
             stop_eval_chain_on_fail=False,
             with_knowledge=False,
             knowledge_self_gen=False,

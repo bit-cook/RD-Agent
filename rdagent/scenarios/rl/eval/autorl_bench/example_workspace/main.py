@@ -1,42 +1,73 @@
-"""
-示例：训练一个简单的 RL 模型 (CartPole + PPO)
-
-这个脚本演示了在 Docker 环境中训练 RL 模型的基本流程。
-运行后会生成 ppo_cartpole.zip 模型文件。
-"""
-
-from stable_baselines3 import PPO
-import gymnasium as gym
-
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from trl import PPOTrainer, PPOConfig
+from datasets import load_dataset
 
 def main():
-    print("=" * 50)
-    print("Starting RL Training: CartPole + PPO")
-    print("=" * 50)
-    
-    # 1. 创建环境
-    print("\n[1/4] Creating environment...")
-    env = gym.make("CartPole-v1")
-    print(f"Environment: CartPole-v1")
-    
-    # 2. 创建模型
-    print("\n[2/4] Creating PPO model...")
-    model = PPO("MlpPolicy", env, verbose=1)
-    
-    # 3. 训练 (10步快速测试)
-    print("\n[3/4] Training (10 timesteps)...")
-    model.learn(total_timesteps=10)
-    
-    # 4. 保存模型
-    print("\n[4/4] Saving model...")
-    model.save("ppo_cartpole")
-    print(f"Model saved to: ppo_cartpole.zip")
-    
-    print("\n" + "=" * 50)
-    print("Training completed!")
-    print("=" * 50)
+    # Configuration
+    model_path = "/models"
+    save_path = "./trained_model"
+    dataset_name = "imdb"  # Example dataset for training
+    split = "train[:1%]"  # Use a small subset of data for simplicity
+    max_input_length = 512
+    max_train_steps = 1000
 
+    # Load the tokenizer and the base model
+    print("Loading model and tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForCausalLM.from_pretrained(model_path)
+
+    # Prepare the dataset
+    print("Loading dataset...")
+    dataset = load_dataset(dataset_name, split=split)
+    def preprocess_function(examples):
+        inputs = examples["text"]
+        inputs = tokenizer(inputs, max_length=max_input_length, truncation=True, padding="max_length", return_tensors="pt")
+        return inputs
+    dataset = dataset.map(preprocess_function, batched=True)
+
+    # PPO Configuration
+    ppo_config = PPOConfig(
+        model_name=model_path,
+        learning_rate=1.41e-5,
+        batch_size=16,
+        log_with="tensorboard",  # Log training metrics
+    )
+
+    # Initialize PPO Trainer
+    print("Initializing PPO Trainer...")
+    ppo_trainer = PPOTrainer(
+        config=ppo_config,
+        model=model,
+        tokenizer=tokenizer,
+        dataset=dataset,
+    )
+
+    # Training loop
+    print("Starting training...")
+    for step, batch in enumerate(ppo_trainer.dataloader):
+        if step >= max_train_steps:
+            break
+
+        # Forward pass through the model
+        query_tensors = batch["input_ids"]
+        response_tensors = ppo_trainer.generate(query_tensors)
+        
+        # Compute rewards (dummy reward for example purposes)
+        rewards = torch.ones(response_tensors.shape[0])  # Replace with actual reward computation
+
+        # Run a PPO training step
+        stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
+
+        # Print training stats
+        if step % 10 == 0:
+            print(f"Step {step}: {stats}")
+
+    # Save the trained model
+    print("Saving the model...")
+    model.save_pretrained(save_path)
+    tokenizer.save_pretrained(save_path)
+    print(f"Model saved to {save_path}")
 
 if __name__ == "__main__":
     main()
-
