@@ -1,7 +1,7 @@
 """RL Post-training Experiment"""
 
 from rdagent.core.experiment import Experiment, Task
-from rdagent.scenarios.rl.eval.workspace import RLWorkspace
+from rdagent.scenarios.rl.experiment.workspace import RLWorkspace
 
 
 class RLExperiment(Experiment[Task, RLWorkspace, RLWorkspace]):

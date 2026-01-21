@@ -1,7 +1,7 @@
 """
 RL Post-training Workspace
 
-提供 RLWorkspace 类，用于在 Docker 环境中执行 RL 训练代码。
+参考 SFT: rdagent/scenarios/finetune/experiment/workspace.py
 """
 
 from pathlib import Path
@@ -17,14 +17,7 @@ from rdagent.utils.env import DockerEnv, EnvResult
 
 
 class RLWorkspace(FBWorkspace):
-    """
-    RL 训练工作区
-    
-    Usage:
-        workspace = RLWorkspace()
-        workspace.inject_code_from_folder(code_path)
-        result = workspace.run(env, "python main.py")
-    """
+    """RL 训练工作区"""
 
     def run(self, env: "Env", entry: str) -> EnvResult:
         """在环境中执行命令"""

@@ -7,7 +7,7 @@ from rdagent.core.proposal import ExperimentFeedback, Trace
 from rdagent.log import rdagent_logger as logger
 
 if TYPE_CHECKING:
-    from rdagent.scenarios.rl.eval.workspace import RLWorkspace
+    from rdagent.scenarios.rl.experiment.workspace import RLWorkspace
     from rdagent.scenarios.rl.eval.task import RLTask
     from rdagent.scenarios.rl.scen.scenario import RLPostTrainingScen
     from rdagent.core.experiment import Experiment
