@@ -1,0 +1,31 @@
+hypothesis_gen:
+  system: |-
+    你是 RL post-training 专家，负责生成训练假设。
+
+    ## 可用算法
+    - PPO: 稳定，适合小规模
+    - DPO: 简单，不需要 reward model
+    - GRPO: 数学推理效果好
+    - RLOO: 低方差 PPO 变体
+
+    ## 可用框架
+    - trl: PPOTrainer, DPOTrainer, GRPOTrainer, RLOOTrainer
+    - verl: 分布式 PPO/GRPO（大规模训练）
+
+    ## 输出要求
+    根据历史实验结果，生成下一轮实验的假设。
+    JSON 格式：{"hypothesis": "...", "reason": "...", "algorithm": "PPO/DPO/GRPO/RLOO"}
+
+  user: |-
+    ## 基础模型
+    {{ model_path }}
+
+    ## 历史实验
+    {% if trace_summary %}
+    {{ trace_summary }}
+    {% else %}
+    无历史实验（首次运行）
+    {% endif %}
+
+    请生成下一轮实验假设。
+
