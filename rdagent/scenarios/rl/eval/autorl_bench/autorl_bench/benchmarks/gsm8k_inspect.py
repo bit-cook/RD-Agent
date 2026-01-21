@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from autorl_bench.benchmarks.base import BenchmarkAdapter, ResultBundle
-from autorl_bench.runtime.schema import Scenario
+from autorl_bench.utils.schema import Scenario
 
 
 def _extract_numeric(text: str, answer_regex: Optional[str]) -> Optional[float]:

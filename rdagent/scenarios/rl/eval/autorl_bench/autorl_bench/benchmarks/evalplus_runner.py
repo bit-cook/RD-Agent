@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from autorl_bench.benchmarks.base import BenchmarkAdapter, ResultBundle
-from autorl_bench.runtime.schema import Scenario
+from autorl_bench.utils.schema import Scenario
 
 
 def _parse_pass_at_1(stdout: str) -> Optional[float]:

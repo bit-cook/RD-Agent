@@ -10,11 +10,13 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
+import yaml
 
 from autorl_bench.benchmarks import get_adapter
-from autorl_bench.runtime.docker import run_container
-from autorl_bench.runtime.schema import Scenario, apply_overrides, find_scenario
+from autorl_bench.utils.docker import run_container
+from autorl_bench.utils.schema import apply_overrides, find_scenario
 
 
 @dataclass
@@ -25,7 +27,7 @@ class RunHandle:
 
 
 class Evaluator:
-    def __init__(self, scenarios_dir: Optional[Path] = None, runs_dir: Optional[Path] = None) -> None:
+    def __init__(self, scenarios_dir: Path | None = None, runs_dir: Path | None = None) -> None:
         base_dir = Path(__file__).parent
         self.scenarios_dir = scenarios_dir or (base_dir / "scenarios")
         self.legacy_dir = base_dir.parent / "configs" / "scenarios"
@@ -34,14 +36,14 @@ class Evaluator:
     def _status_path(self, output_dir: Path) -> Path:
         return output_dir / "status.json"
 
-    def _write_status(self, output_dir: Path, status: str, details: Optional[Dict[str, Any]] = None) -> None:
-        payload: Dict[str, Any] = {"status": status, "updated_at": datetime.utcnow().isoformat()}
+    def _write_status(self, output_dir: Path, status: str, details: dict[str, Any] | None = None) -> None:
+        payload: dict[str, Any] = {"status": status, "updated_at": datetime.utcnow().isoformat()}
         if details:
             payload.update(details)
         with self._status_path(output_dir).open("w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
-    def run(self, scenario_name: str, overrides: Optional[Dict[str, Any]] = None, run_id: Optional[str] = None) -> RunHandle:
+    def run(self, scenario_name: str, overrides: dict[str, Any] | None = None, run_id: str | None = None) -> RunHandle:
         scenario_file = find_scenario(scenario_name, [self.scenarios_dir, self.legacy_dir])
         scenario = apply_overrides(scenario_file.scenario, overrides)
         adapter = get_adapter(scenario.effective_benchmark())
@@ -53,6 +55,11 @@ class Evaluator:
         # Ensure container user can write into the mounted output dir.
         output_dir.chmod(0o777)
         self._write_status(output_dir, "running")
+
+        resolved_scenario_path = output_dir / "scenario.yaml"
+        with resolved_scenario_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(scenario.model_dump(), f, sort_keys=False, allow_unicode=False)
+        resolved_scenario_path.chmod(0o644)
 
         entry_args = ["eval", "--scenario", "/scenario.yaml", "--output", "/output"]
         env = {
@@ -70,33 +77,24 @@ class Evaluator:
             if (value := os.environ.get(key))
         }
 
-        def _write_docker_log(stage: str, result) -> None:
-            logs_dir = output_dir / "logs"
-            logs_dir.mkdir(parents=True, exist_ok=True)
-            logs_dir.chmod(0o777)
-            log_path = logs_dir / f"docker_{stage}.log"
-            with log_path.open("w", encoding="utf-8") as f:
-                f.write(result.stdout or "")
-                if result.stderr:
-                    f.write("\n[stderr]\n")
-                    f.write(result.stderr)
+        def _ensure_success(stage: str, result) -> None:
+            if result.exit_code != 0:
+                raise RuntimeError(f"{stage} failed (exit_code={result.exit_code}). stdout: {result.stdout}")
 
         try:
             if scenario.effective_benchmark() == "evalplus" and scenario.params.get("mode", "two_stage") == "two_stage":
                 codegen = run_container(
                     image=scenario.docker_image or adapter.default_image(),
-                    scenario_path=scenario_file.path,
+                    scenario_path=resolved_scenario_path,
                     output_dir=output_dir,
                     entry_args=entry_args + ["--stage", "codegen"],
                     env=env,
                 )
-                _write_docker_log("codegen", codegen)
-                if codegen.returncode != 0:
-                    raise RuntimeError(codegen.stderr or codegen.stdout)
+                _ensure_success("codegen", codegen)
 
                 evaluate = run_container(
                     image=scenario.docker_image or adapter.default_image(),
-                    scenario_path=scenario_file.path,
+                    scenario_path=resolved_scenario_path,
                     output_dir=output_dir,
                     entry_args=entry_args + ["--stage", "evaluate"],
                     network="none",
@@ -105,20 +103,16 @@ class Evaluator:
                     pids_limit=256,
                     env=env,
                 )
-                _write_docker_log("evaluate", evaluate)
-                if evaluate.returncode != 0:
-                    raise RuntimeError(evaluate.stderr or evaluate.stdout)
+                _ensure_success("evaluate", evaluate)
             else:
                 result = run_container(
                     image=scenario.docker_image or adapter.default_image(),
-                    scenario_path=scenario_file.path,
+                    scenario_path=resolved_scenario_path,
                     output_dir=output_dir,
                     entry_args=entry_args,
                     env=env,
                 )
-                _write_docker_log("run", result)
-                if result.returncode != 0:
-                    raise RuntimeError(result.stderr or result.stdout)
+                _ensure_success("run", result)
 
             self._write_status(output_dir, "succeeded")
             return RunHandle(run_id=run_id, output_dir=output_dir, status="succeeded")

@@ -69,4 +69,13 @@ def find_scenario(name: str, search_dirs: list[Path]) -> ScenarioFile:
 def apply_overrides(scenario: Scenario, overrides: Optional[Dict[str, Any]]) -> Scenario:
     if not overrides:
         return scenario
-    return scenario.model_copy(update=overrides)
+    merged = dict(overrides)
+    if isinstance(merged.get("params"), dict):
+        base_params = dict(scenario.params or {})
+        base_params.update(merged["params"])
+        merged["params"] = base_params
+    if isinstance(merged.get("model"), dict):
+        base_model = scenario.model.model_dump() if scenario.model is not None else {}
+        base_model.update(merged["model"])
+        merged["model"] = base_model
+    return scenario.model_copy(update=merged)

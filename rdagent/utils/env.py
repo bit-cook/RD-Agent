@@ -792,6 +792,9 @@ class DockerConf(EnvConf):
     enable_gpu: bool = True  # because we will automatically disable GPU if not available. So we enable it by default.
     mem_limit: str | None = "48g"  # Add memory limit attribute
     cpu_count: int | None = None  # Add CPU limit attribute
+    read_only: bool = False  # Mount container filesystem as read-only
+    cap_drop_all: bool = False  # Drop all Linux capabilities
+    pids_limit: int | None = None  # Limit the number of processes
 
     running_timeout_period: int | None = 3600  # 1 hour
 
@@ -1454,6 +1457,10 @@ class DockerEnv(Env[DockerConf]):
                 shm_size=self.conf.shm_size,
                 mem_limit=self.conf.mem_limit,  # Set memory limit
                 cpu_count=self.conf.cpu_count,  # Set CPU limit
+                read_only=self.conf.read_only,
+                cap_drop=["ALL"] if self.conf.cap_drop_all else None,
+                pids_limit=self.conf.pids_limit,
+                tmpfs={"/tmp": "rw,noexec,nosuid,size=1g"} if self.conf.read_only else None,
                 **self._gpu_kwargs(client),
             )
             assert container is not None  # Ensure container was created successfully

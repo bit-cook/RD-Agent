@@ -5,7 +5,7 @@ Scenario loader utilities.
 from pathlib import Path
 from typing import Dict, List
 
-from autorl_bench.runtime.schema import Scenario, ScenarioFile, find_scenario
+from autorl_bench.utils.schema import Scenario, ScenarioFile, find_scenario
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SCENARIOS_DIR = Path(__file__).parent

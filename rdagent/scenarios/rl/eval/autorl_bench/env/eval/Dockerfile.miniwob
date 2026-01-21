@@ -34,6 +34,3 @@ ENV CHROME_BIN=/usr/bin/chromium \
 
 RUN useradd -m -u 10001 appuser
 USER appuser
-
-ENTRYPOINT ["python", "/app/env_entry.py"]
-CMD ["eval"]

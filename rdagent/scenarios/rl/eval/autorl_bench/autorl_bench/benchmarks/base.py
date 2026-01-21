@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from autorl_bench.runtime.schema import Scenario
+from autorl_bench.utils.schema import Scenario
 
 
 @dataclass

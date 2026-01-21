@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import gymnasium as gym
 
 from autorl_bench.benchmarks.base import BenchmarkAdapter, ResultBundle
-from autorl_bench.runtime.schema import Scenario
+from autorl_bench.utils.schema import Scenario
 
 
 def _load_tasks(task_set: Any) -> List[str]:

@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 
 from autorl_bench.benchmarks import get_adapter
-from autorl_bench.runtime.io import write_result_bundle
-from autorl_bench.runtime.schema import ModelConfig, Scenario, load_scenario_file
+from autorl_bench.utils.io import write_result_bundle
+from autorl_bench.utils.schema import ModelConfig, Scenario, load_scenario_file
 
 
 def _normalize_base_url(base_url: str | None, provider: str | None) -> str | None:
