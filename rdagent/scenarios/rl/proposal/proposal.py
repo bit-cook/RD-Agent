@@ -13,19 +13,6 @@ from rdagent.utils.agent.tpl import T
 DEFAULT_MODEL_PATH = "/models/Qwen2.5-Coder-0.5B-Instruct"
 
 
-class RLHypothesis(Hypothesis):
-    """RL post-training hypothesis class."""
-    def __init__(self, hypothesis: str, reason: str, algorithm: str = "PPO") -> None:
-        super().__init__(
-            hypothesis=hypothesis,
-            reason=reason,
-            concise_reason="",
-            concise_observation="",
-            concise_justification="",
-            concise_knowledge="",
-        )
-        self.algorithm = algorithm
-
 
 class RLPostTrainingExpGen(ExpGen):
     """RL post-training experiment generator with LLM."""
@@ -37,24 +24,23 @@ class RLPostTrainingExpGen(ExpGen):
         """Generate RL post-training experiment using LLM."""
         # 构建历史摘要
         trace_summary = self._build_trace_summary(trace)
-        
+
         # 调用 LLM 生成假设
         hypothesis_data = self._gen_hypothesis_with_llm(trace_summary)
-        
+
         # 创建任务和实验
         rl_task = RLTask(
             name=f"RLTask_{hypothesis_data.get('algorithm', 'PPO')}",
             description=hypothesis_data.get("hypothesis", "Train RL agent"),
             model_path=DEFAULT_MODEL_PATH,
         )
-        hypothesis = RLHypothesis(
+        hypothesis = Hypothesis(
             hypothesis=hypothesis_data.get("hypothesis", "Train RL agent"),
             reason=hypothesis_data.get("reason", ""),
-            algorithm=hypothesis_data.get("algorithm", "PPO"),
         )
-        
+        algorithm=hypothesis_data.get("algorithm", "PPO")
         exp = RLExperiment(sub_tasks=[rl_task], hypothesis=hypothesis)
-        logger.info(f"Generated experiment: {hypothesis.hypothesis} (algorithm={hypothesis.algorithm})")
+        logger.info(f"Generated experiment: {hypothesis.hypothesis} (algorithm={algorithm})")
         return exp
 
     def _build_trace_summary(self, trace: Trace) -> str:
@@ -85,6 +71,7 @@ class RLPostTrainingExpGen(ExpGen):
             )
             return json.loads(resp)
         except Exception as e:
+            # TODO: don't catch unknown exceptions
             logger.warning(f"LLM hypothesis generation failed: {e}, using default")
             return {
                 "hypothesis": "Train RL agent using PPO algorithm",

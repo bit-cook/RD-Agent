@@ -45,5 +45,7 @@ class RLPostTrainingPropSetting(ExtendedBaseSettings):
 
     base_model: str | None = None
 
+    local_data_path: str | None = None  # all the dataset will be downloaded to this path and mounted to docker to be shared.
+
 # Global setting instance for RL post-training scenario
 RL_RD_SETTING = RLPostTrainingPropSetting()

@@ -62,6 +62,8 @@ CoSTEER：代码生成是困难的；我们需要多个步骤来生成代码。�
 [[test/rl/test_example_workspace.py:6]]
 
 
+## Coding Principles
+Don't catch unknown exceptions when implementing new code. I prefer to let the error propagate so it can be detected and fixed promptly.
 
 ## (R)un 运行特定功能
 
