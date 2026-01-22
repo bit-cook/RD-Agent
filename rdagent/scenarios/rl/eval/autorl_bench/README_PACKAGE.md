@@ -6,12 +6,12 @@
 2) 运行一次评测（推荐：Docker 隔离）  
 3) 产出结构化结果：`status.json` + `metrics.json`（可选 `samples.jsonl`）  
 
-> 本 README 只讲 `rdagent/scenarios/rl/eval/autorl_bench/autorl_bench/` 目录下如何使用（从 RD-Agent 仓库根目录相对路径）。上层工程说明见 `rdagent/scenarios/rl/eval/autorl_bench/README.md`。
+> 本 README 只讲 `rdagent/scenarios/rl/eval/autorl_bench/` 目录下如何使用（从 RD-Agent 仓库根目录相对路径）。上层工程说明见 `rdagent/scenarios/rl/eval/autorl_bench/README.md`。
 
 **TL;DR（从 RD-Agent repo root 执行）**
 
 ```bash
-export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval/autorl_bench:${PYTHONPATH}"
+export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval:${PYTHONPATH}"
 python - <<'PY'
 from autorl_bench.evaluator import Evaluator
 print(Evaluator().run("gsm8k", overrides={"params": {"limit": 20}}))
@@ -67,7 +67,7 @@ autorl_bench/
 从 **RD-Agent 仓库根目录**执行：
 
 ```bash
-export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval/autorl_bench:${PYTHONPATH}"
+export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval:${PYTHONPATH}"
 python -c "import autorl_bench; print('autorl_bench', autorl_bench.__version__)"
 ```
 
@@ -85,7 +85,7 @@ python -c "import autorl_bench; print('autorl_bench', autorl_bench.__version__)"
 ### 4.1 跑内置场景（最短可运行示例）
 
 ```bash
-export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval/autorl_bench:${PYTHONPATH}"
+export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval:${PYTHONPATH}"
 
 python - <<'PY'
 from autorl_bench.evaluator import Evaluator
@@ -282,7 +282,7 @@ docker build -f env/eval/Dockerfile.miniwob    -t autorl-bench/eval-miniwob:0.1 
 启动（两种方式任选其一）：
 
 ```bash
-export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval/autorl_bench:${PYTHONPATH}"
+export PYTHONPATH="$PWD/rdagent/scenarios/rl/eval:${PYTHONPATH}"
 python -m autorl_bench.server
 ```
 
@@ -321,7 +321,7 @@ python /app/env_entry.py eval --scenario /scenario.yaml --output /output
 ```bash
 python rdagent/scenarios/rl/eval/autorl_bench/env/entry.py \
   eval \
-  --scenario rdagent/scenarios/rl/eval/autorl_bench/autorl_bench/scenarios/gsm8k.yaml \
+  --scenario rdagent/scenarios/rl/eval/autorl_bench/scenarios/gsm8k.yaml \
   --output /tmp/autorl_bench_out
 ```
 

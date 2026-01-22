@@ -30,8 +30,9 @@ class Evaluator:
     def __init__(self, scenarios_dir: Path | None = None, runs_dir: Path | None = None) -> None:
         base_dir = Path(__file__).parent
         self.scenarios_dir = scenarios_dir or (base_dir / "scenarios")
-        self.legacy_dir = base_dir.parent / "configs" / "scenarios"
-        self.runs_dir = runs_dir or (base_dir.parent / "runs")
+        # configs/ 与 runs/ 现在与本文件同级
+        self.legacy_dir = base_dir / "configs" / "scenarios"
+        self.runs_dir = runs_dir or (base_dir / "runs")
 
     def _status_path(self, output_dir: Path) -> Path:
         return output_dir / "status.json"

@@ -77,41 +77,91 @@ def _resolve_model_id(model_id: str, provider: Optional[str]) -> str:
     return model_id
 
 
+def _normalize_action_name(action: Any) -> Optional[str]:
+    if action is None:
+        return None
+    if isinstance(action, str):
+        name = action.strip()
+        if not name:
+            return None
+        return name.upper().replace(" ", "_")
+    return str(action).strip().upper().replace(" ", "_")
+
+
+def _noop_action(env: gym.Env) -> Any:
+    base_env = getattr(env, "unwrapped", env)
+    create_action = getattr(base_env, "create_action", None)
+    if callable(create_action):
+        try:
+            return create_action("NONE")
+        except Exception:
+            pass
+    return env.action_space.sample()
+
+
 def _map_action(env: gym.Env, action_spec: Dict[str, Any]) -> Any:
     space = env.action_space
-    if isinstance(space, gym.spaces.Dict):
-        action: Dict[str, Any] = {}
-        action_type = action_spec.get("action")
-        ref = action_spec.get("ref", 0)
-        text = action_spec.get("text", "")
-        key = action_spec.get("key", "")
+    if not isinstance(space, gym.spaces.Dict):
+        return space.sample()
 
-        if "action_type" in space.spaces:
-            action_type_space = space.spaces["action_type"]
-            if isinstance(action_type_space, gym.spaces.Discrete):
-                mapping = {}
-                if hasattr(space, "action_types"):
-                    mapping = {name: idx for idx, name in enumerate(space.action_types)}
-                action["action_type"] = mapping.get(action_type, 0)
-            else:
-                action["action_type"] = action_type or action_type_space.sample()
+    action_name = _normalize_action_name(action_spec.get("action") or action_spec.get("action_type"))
+    if not action_name:
+        return _noop_action(env)
 
-        if "ref" in space.spaces:
-            ref_space = space.spaces["ref"]
-            if isinstance(ref_space, gym.spaces.Discrete):
-                action["ref"] = max(0, min(int(ref), ref_space.n - 1))
-            else:
-                action["ref"] = ref
+    base_env = getattr(env, "unwrapped", env)
+    create_action = getattr(base_env, "create_action", None)
+    if not callable(create_action):
+        return _noop_action(env)
 
-        if "text" in space.spaces:
-            action["text"] = text
+    kwargs: Dict[str, Any] = {}
+    if "ref" in space.spaces and "ref" in action_spec:
+        ref_space = space.spaces["ref"]
+        try:
+            ref_value = int(action_spec.get("ref", 0))
+        except Exception:
+            ref_value = 0
+        if isinstance(ref_space, gym.spaces.Discrete):
+            ref_value = max(0, min(ref_value, ref_space.n - 1))
+        kwargs["ref"] = ref_value
 
-        if "key" in space.spaces:
-            action["key"] = key
+    if "field" in space.spaces and "field" in action_spec:
+        field_space = space.spaces["field"]
+        try:
+            field_value = int(action_spec.get("field", 0))
+        except Exception:
+            field_value = 0
+        if isinstance(field_space, gym.spaces.Discrete):
+            field_value = max(0, min(field_value, field_space.n - 1))
+        kwargs["field"] = field_value
 
-        return action
+    if "text" in space.spaces and "text" in action_spec:
+        kwargs["text"] = str(action_spec.get("text", ""))
 
-    return space.sample()
+    if "key" in space.spaces and "key" in action_spec:
+        key_space = space.spaces["key"]
+        raw_key = action_spec.get("key", 0)
+        key_value: int
+        if isinstance(raw_key, int):
+            key_value = raw_key
+        else:
+            try:
+                key_value = int(str(raw_key))
+            except Exception:
+                allowed_keys = getattr(getattr(base_env, "action_space_config", None), "allowed_keys", None) or []
+                try:
+                    key_value = allowed_keys.index(str(raw_key))
+                except ValueError:
+                    lowered = str(raw_key).lower()
+                    match = next((i for i, k in enumerate(allowed_keys) if str(k).lower() == lowered), 0)
+                    key_value = int(match)
+        if isinstance(key_space, gym.spaces.Discrete):
+            key_value = max(0, min(int(key_value), key_space.n - 1))
+        kwargs["key"] = key_value
+
+    try:
+        return create_action(action_name, **kwargs)
+    except Exception:
+        return _noop_action(env)
 
 
 class MiniWoBAdapter(BenchmarkAdapter):
@@ -146,7 +196,21 @@ class MiniWoBAdapter(BenchmarkAdapter):
         started = time.time()
 
         for task in tasks:
-            env = gym.make(f"miniwob/{task}")
+            action_space_config = params.get("action_space", "all_supported")
+            env = gym.make(f"miniwob/{task}", action_space_config=action_space_config)
+            base_env = getattr(env, "unwrapped", env)
+            action_types = getattr(getattr(base_env, "action_space_config", None), "action_types", None) or []
+            supported_actions = []
+            for action_type in action_types:
+                value = getattr(action_type, "value", None)
+                supported_actions.append(str(value or action_type))
+            prompt_actions = [
+                a
+                for a in ("CLICK_ELEMENT", "FOCUS_ELEMENT_AND_TYPE_FIELD", "TYPE_TEXT", "PRESS_KEY", "NONE")
+                if a in supported_actions
+            ]
+            if not prompt_actions and supported_actions:
+                prompt_actions = supported_actions
             for ep in range(episodes_per_task):
                 obs, info = env.reset(seed=seed + ep)
                 reward_sum = 0.0
@@ -155,9 +219,13 @@ class MiniWoBAdapter(BenchmarkAdapter):
                     dom_text = _format_dom(obs.get("dom_elements", []), dom_max_elems) if isinstance(obs, dict) else ""
                     prompt = (
                         "You are a web agent. Choose the next action in JSON.\n"
-                        "Allowed actions: CLICK_ELEMENT, TYPE_TEXT, PRESS_KEY.\n"
-                        "Return JSON like {\"action\": \"CLICK_ELEMENT\", \"ref\": 12} or "
-                        "{\"action\": \"TYPE_TEXT\", \"ref\": 5, \"text\": \"hello\"}.\n\n"
+                        f"Allowed actions: {', '.join(prompt_actions)}.\n"
+                        "Return JSON only (no markdown).\n"
+                        "Examples:\n"
+                        "- {\"action\": \"CLICK_ELEMENT\", \"ref\": 0}\n"
+                        "- {\"action\": \"FOCUS_ELEMENT_AND_TYPE_FIELD\", \"ref\": 0, \"field\": 0}\n\n"
+                        "Rules:\n"
+                        "- Choose a \"ref\" that appears in Elements (the number in brackets).\n\n"
                         f"Instruction: {utterance}\n"
                         f"Elements:\n{dom_text}\n"
                     )
@@ -177,7 +245,14 @@ class MiniWoBAdapter(BenchmarkAdapter):
                         action_spec = {}
                         action = env.action_space.sample()
 
-                    obs, reward, terminated, truncated, info = env.step(action)
+                    try:
+                        obs, reward, terminated, truncated, info = env.step(action)
+                    except Exception as exc:
+                        reward = 0.0
+                        terminated = False
+                        truncated = True
+                        info = {"success": False, "error": str(exc)}
+                        obs = {}
                     reward_sum += float(reward)
                     samples.append(
                         {
@@ -186,6 +261,7 @@ class MiniWoBAdapter(BenchmarkAdapter):
                             "step": step,
                             "action_spec": action_spec,
                             "reward": reward,
+                            "error": info.get("error"),
                             "terminated": terminated,
                             "truncated": truncated,
                             "response": response,

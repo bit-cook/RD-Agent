@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -21,6 +22,12 @@ def _parse_pass_at_1(stdout: str) -> Optional[float]:
                         return float(data["pass@1"])
                 except Exception:
                     continue
+        match = re.search(r"pass@1\s*[:=]\s*([0-9]*\.?[0-9]+)", line)
+        if match:
+            try:
+                return float(match.group(1))
+            except Exception:
+                continue
     return None
 
 
@@ -29,6 +36,14 @@ class EvalPlusAdapter(BenchmarkAdapter):
 
     def default_image(self) -> str:
         return "autorl-bench/eval-evalplus:0.1"
+
+    def _find_samples_path(self, output_dir: Path, dataset: str) -> Optional[Path]:
+        dataset_dir = output_dir / dataset
+        if not dataset_dir.exists():
+            return None
+        candidates = [p for p in dataset_dir.glob("*.jsonl") if not p.name.endswith(".raw.jsonl")]
+        candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return candidates[0] if candidates else None
 
     def run(self, scenario: Scenario, output_dir: Path, stage: Optional[str] = None) -> ResultBundle:
         params = scenario.params or {}
@@ -46,51 +61,35 @@ class EvalPlusAdapter(BenchmarkAdapter):
         base_url = getattr(model_cfg, "base_url", None)
         api_key = getattr(model_cfg, "api_key", None)
         temperature = getattr(model_cfg, "temperature", 0.0)
-        max_tokens = getattr(model_cfg, "max_tokens", 1024)
         greedy = bool(params.get("greedy", True))
         n_samples = int(params.get("n_samples", 1))
 
-        samples_path = output_dir / "samples.jsonl"
         started = time.time()
 
         stdout_acc = ""
         if stage in ("codegen", "auto"):
-            cmd = [
-                "evalplus.codegen",
-                "--dataset",
-                dataset,
-                "--model",
-                model_id,
-                "--backend",
-                "openai",
-                "--temperature",
-                str(temperature),
-                "--max-tokens",
-                str(max_tokens),
-                "--n-samples",
-                str(n_samples),
-                "--output",
-                str(samples_path),
-            ]
+            # evalplus.codegen uses positional args: MODEL DATASET
+            cmd = ["evalplus.codegen", model_id, dataset, "--backend", "openai", "--temperature", str(temperature)]
             if base_url:
-                cmd += ["--base-url", base_url]
+                cmd += ["--base_url", base_url]
             if api_key:
-                cmd += ["--api-key", api_key]
+                # evalplus relies on OPENAI_API_KEY env var for OpenAI backend.
+                # Keep api_key in meta for traceability.
+                pass
             if greedy:
-                cmd += ["--greedy"]
+                cmd += ["--greedy", "True"]
+            cmd += ["--n_samples", str(n_samples), "--root", str(output_dir)]
             codegen = subprocess.run(cmd, capture_output=True, text=True)
             stdout_acc += codegen.stdout + "\n" + codegen.stderr
             if codegen.returncode != 0:
                 raise RuntimeError(f"EvalPlus codegen failed: {codegen.stderr}")
 
+        samples_path = self._find_samples_path(output_dir, dataset)
+        if samples_path is None:
+            raise RuntimeError(f"EvalPlus samples not found under: {output_dir / dataset}")
+
         if stage in ("evaluate", "auto"):
-            cmd = [
-                "evalplus.evaluate",
-                "--dataset",
-                dataset,
-                "--samples",
-                str(samples_path),
-            ]
+            cmd = ["evalplus.evaluate", dataset, "--samples", str(samples_path)]
             evaluate = subprocess.run(cmd, capture_output=True, text=True)
             stdout_acc += evaluate.stdout + "\n" + evaluate.stderr
             if evaluate.returncode != 0:
@@ -106,6 +105,7 @@ class EvalPlusAdapter(BenchmarkAdapter):
             metric=metrics or {"pass@1": 0.0},
             meta={
                 "model": {"id": model_id, "base_url": base_url},
+                "api_key_set": bool(api_key),
                 "data": {"id": data_id, "dataset": dataset},
                 "baseline": scenario.baseline,
                 "params": params,
@@ -113,5 +113,5 @@ class EvalPlusAdapter(BenchmarkAdapter):
                 "started_at": started,
                 "finished_at": time.time(),
             },
-            artifacts={"samples_jsonl": samples_path.name} if samples_path.exists() else {},
+            artifacts={"samples_jsonl": str(samples_path.relative_to(output_dir))} if samples_path.exists() else {},
         )

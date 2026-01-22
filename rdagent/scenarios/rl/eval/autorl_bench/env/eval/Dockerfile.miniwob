@@ -27,7 +27,7 @@ RUN pip install --upgrade pip \
     rich
 
 COPY autorl_bench/ /app/autorl_bench/
-COPY env/entry.py /app/env_entry.py
+COPY autorl_bench/env/entry.py /app/env_entry.py
 
 ENV CHROME_BIN=/usr/bin/chromium \
     CHROMEDRIVER_BIN=/usr/bin/chromedriver

@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from autorl_bench.utils.schema import Scenario, ScenarioFile, find_scenario
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent  # now the package root
 SCENARIOS_DIR = Path(__file__).parent
 LEGACY_CONFIGS_DIR = PROJECT_ROOT / "configs" / "scenarios"
 
