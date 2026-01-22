@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir stable-baselines3[extra] gymnasium
 
 # LLM post-training 库
 RUN pip install --no-cache-dir \
-    transformers \
-    trl \
+    transformers==4.43.1 \
+    trl==0.11.4 \
     datasets \
     peft \
     accelerate \

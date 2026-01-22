@@ -35,7 +35,7 @@ def _clean_json(text: str) -> Dict[str, Any]:
 
 
 def _format_dom(dom_elements: Any, max_elems: int) -> str:
-    if not isinstance(dom_elements, list):
+    if not isinstance(dom_elements, (list, tuple)):
         return ""
     lines = []
     for elem in dom_elements[:max_elems]:
@@ -211,6 +211,8 @@ class MiniWoBAdapter(BenchmarkAdapter):
             ]
             if not prompt_actions and supported_actions:
                 prompt_actions = supported_actions
+            if task.startswith("click-") and "CLICK_ELEMENT" in prompt_actions:
+                prompt_actions = [a for a in prompt_actions if a in ("CLICK_ELEMENT", "NONE")]
             for ep in range(episodes_per_task):
                 obs, info = env.reset(seed=seed + ep)
                 reward_sum = 0.0
@@ -221,11 +223,10 @@ class MiniWoBAdapter(BenchmarkAdapter):
                         "You are a web agent. Choose the next action in JSON.\n"
                         f"Allowed actions: {', '.join(prompt_actions)}.\n"
                         "Return JSON only (no markdown).\n"
-                        "Examples:\n"
-                        "- {\"action\": \"CLICK_ELEMENT\", \"ref\": 0}\n"
-                        "- {\"action\": \"FOCUS_ELEMENT_AND_TYPE_FIELD\", \"ref\": 0, \"field\": 0}\n\n"
                         "Rules:\n"
-                        "- Choose a \"ref\" that appears in Elements (the number in brackets).\n\n"
+                        "- If you click an element, set an integer \"ref\" that appears in Elements (the number in brackets).\n"
+                        "- Refs can be large numbers; copy them exactly from Elements.\n"
+                        "- If no action applies, return {\"action\": \"NONE\"}.\n\n"
                         f"Instruction: {utterance}\n"
                         f"Elements:\n{dom_text}\n"
                     )

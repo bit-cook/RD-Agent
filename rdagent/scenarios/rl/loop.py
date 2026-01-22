@@ -56,3 +56,10 @@ class RLPostTrainingRDLoop(RDLoop):
         feedback = prev_out["feedback"]
         exp = prev_out.get("running") or prev_out.get("coding") or prev_out.get("direct_exp_gen")
         self.trace.sync_dag_parent_and_hist((exp, feedback), prev_out[self.LOOP_IDX_KEY])
+
+    def dump(self, path):
+        """Skip dump if the loop contains unpicklable objects."""
+        try:
+            super().dump(path)
+        except TypeError as e:
+            logger.warning(f"Skip dump due to pickling error: {e}")

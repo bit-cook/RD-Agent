@@ -23,6 +23,14 @@ rl_coder:
     ## 模型路径
     {{ model_path }}
 
+    ## 训练数据路径
+    {{ data_path }}
+
+    数据格式:
+    - jsonl，每行包含字段: question, answer
+    - 使用 datasets.load_dataset("json", data_files={"train": data_path})
+    - 不要使用占位路径
+
     ## 假设
     {{ hypothesis }}
 
@@ -32,4 +40,3 @@ rl_coder:
     {% endif %}
 
     请生成完整的训练代码（main.py），从指定的模型路径加载基础模型。
-

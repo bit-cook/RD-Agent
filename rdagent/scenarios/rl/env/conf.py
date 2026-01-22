@@ -4,6 +4,7 @@ RL Training Environment Configuration
 参考 SFT: rdagent/components/coder/finetune/conf.py
 """
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -16,7 +17,10 @@ if TYPE_CHECKING:
 
 # RL 资源路径
 RL_ASSETS_DIR = Path(__file__).parent.parent / "eval" / "autorl_bench" / "assets"
-RL_MODELS_DIR = RL_ASSETS_DIR / "models"
+_DEFAULT_MODELS_DIR = RL_ASSETS_DIR / "models"
+RL_MODELS_DIR = Path(os.environ.get("RL_MODELS_DIR", str(_DEFAULT_MODELS_DIR)))
+_DEFAULT_DATA_DIR = RL_ASSETS_DIR / "data"
+RL_DATA_DIR = Path(os.environ.get("RL_DATA_DIR", str(_DEFAULT_DATA_DIR)))
 RL_WORKSPACE_DIR = Path(__file__).parent.parent / "eval" / "autorl_bench" / "example_workspace"
 
 
@@ -50,6 +54,7 @@ def get_rl_env(timeout: int = 3600) -> DockerEnv:
     # 挂载目录 (格式: {host_path: {"bind": container_path, "mode": "ro/rw"}})
     conf.extra_volumes = {
         str(RL_MODELS_DIR): {"bind": "/models", "mode": "ro"},
+        str(RL_DATA_DIR): {"bind": "/data", "mode": "ro"},
     }
     
     env = DockerEnv(conf=conf)
@@ -57,6 +62,6 @@ def get_rl_env(timeout: int = 3600) -> DockerEnv:
     
     logger.info(f"RL DockerEnv prepared: {conf.image}")
     logger.info(f"  Models: {RL_MODELS_DIR} -> /models")
+    logger.info(f"  Data: {RL_DATA_DIR} -> /data")
     
     return env
-

@@ -11,6 +11,7 @@ from rdagent.utils.agent.tpl import T
 
 # 默认模型路径
 DEFAULT_MODEL_PATH = "/models/Qwen2.5-Coder-0.5B-Instruct"
+DEFAULT_TRAIN_DATA_PATH = "/data/gsm8k/train.jsonl"
 
 
 
@@ -33,12 +34,17 @@ class RLPostTrainingExpGen(ExpGen):
             name=f"RLTask_{hypothesis_data.get('algorithm', 'PPO')}",
             description=hypothesis_data.get("hypothesis", "Train RL agent"),
             model_path=DEFAULT_MODEL_PATH,
+            data_path=DEFAULT_TRAIN_DATA_PATH,
         )
         hypothesis = Hypothesis(
             hypothesis=hypothesis_data.get("hypothesis", "Train RL agent"),
             reason=hypothesis_data.get("reason", ""),
+            concise_reason="",
+            concise_observation="",
+            concise_justification="",
+            concise_knowledge="",
         )
-        algorithm=hypothesis_data.get("algorithm", "PPO")
+        algorithm = hypothesis_data.get("algorithm", "PPO")
         exp = RLExperiment(sub_tasks=[rl_task], hypothesis=hypothesis)
         logger.info(f"Generated experiment: {hypothesis.hypothesis} (algorithm={algorithm})")
         return exp

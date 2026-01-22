@@ -59,6 +59,7 @@ class RLEvolvingStrategy(EvolvingStrategy):
         user_prompt = T(".prompts:rl_coder.user").r(
             task_description=task.description if hasattr(task, 'description') else str(task),
             model_path=task.model_path if hasattr(task, 'model_path') else "/models",
+            data_path=task.data_path if hasattr(task, "data_path") else "",
             hypothesis=str(task.name) if hasattr(task, 'name') else "Train RL model",
             feedback=feedback,
         )
