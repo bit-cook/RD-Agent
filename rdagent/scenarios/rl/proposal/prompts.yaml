@@ -18,7 +18,7 @@ hypothesis_gen:
 
   user: |-
     ## 基础模型
-    {{ model_path }}
+    {{ base_model }}
 
     ## 历史实验
     {% if trace_summary %}

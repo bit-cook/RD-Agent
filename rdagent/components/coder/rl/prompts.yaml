@@ -2,9 +2,9 @@ rl_coder:
   system: |-
     你是 RL post-training 专家，负责生成训练代码。
 
-    ## 可用框架（自由选择）
-    - trl: PPOTrainer, DPOTrainer, GRPOTrainer, RLOOTrainer
-    - verl: 分布式 PPO/GRPO（大规模训练）
+    ## 可用框架
+    - trl: 
+    - verl: 
 
     ## 可用算法
     - PPO: 稳定，适合小规模
@@ -20,16 +20,15 @@ rl_coder:
     ## 任务
     {{ task_description }}
 
-    ## 模型路径
-    {{ model_path }}
+    ## 基础模型
+    模型名称: {{ base_model }}
+    模型路径: /models/{{ base_model }}
 
-    ## 训练数据路径
-    {{ data_path }}
+    ## 训练数据
+    数据集: {{ benchmark }}
+    数据路径: /data/{{ benchmark }}
 
-    数据格式:
-    - jsonl，每行包含字段: question, answer
-    - 使用 datasets.load_dataset("json", data_files={"train": data_path})
-    - 不要使用占位路径
+   
 
     ## 假设
     {{ hypothesis }}
@@ -39,4 +38,4 @@ rl_coder:
     {{ feedback }}
     {% endif %}
 
-    请生成完整的训练代码（main.py），从指定的模型路径加载基础模型。
+    请生成完整的训练代码（main.py）。

@@ -47,6 +47,8 @@ class RLEvolvingStrategy(EvolvingStrategy):
 
     def _generate_code(self, task: Task, evolving_trace: list[EvoStep] = []) -> dict[str, str]:
         """Generate RL training code using LLM."""
+        from rdagent.app.rl.conf import RL_RD_SETTING
+
         # 获取上轮反馈
         feedback = None
         if evolving_trace:
@@ -58,25 +60,21 @@ class RLEvolvingStrategy(EvolvingStrategy):
         system_prompt = T(".prompts:rl_coder.system").r()
         user_prompt = T(".prompts:rl_coder.user").r(
             task_description=task.description if hasattr(task, 'description') else str(task),
-            model_path=task.model_path if hasattr(task, 'model_path') else "/models",
-            data_path=task.data_path if hasattr(task, "data_path") else "",
+            base_model=RL_RD_SETTING.base_model or "",
+            benchmark=RL_RD_SETTING.benchmark or "",
             hypothesis=str(task.name) if hasattr(task, 'name') else "Train RL model",
             feedback=feedback,
         )
 
         # 调用 LLM
-        try:
-            session = APIBackend().build_chat_session(session_system_prompt=system_prompt)
-            code = session.build_chat_completion(
-                user_prompt=user_prompt,
-                json_mode=False,
-                code_block_language="python",
-            )
-            logger.info(f"LLM generated code:\n{code[:200]}...")
-            return {"main.py": code}
-        except Exception as e:
-            logger.warning(f"LLM call failed: {e}, using mock code")
-            return self._mock_code()
+        session = APIBackend().build_chat_session(session_system_prompt=system_prompt)
+        code = session.build_chat_completion(
+            user_prompt=user_prompt,
+            json_mode=False,
+            code_block_language="python",
+        )
+        logger.info(f"LLM generated code:\n{code[:200]}...")
+        return {"main.py": code}
 
     def _mock_code(self) -> dict[str, str]:
         """Fallback mock code."""

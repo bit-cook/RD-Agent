@@ -1,14 +1,14 @@
 
-# Task Description
+# 任务描述
 
-We are developing a most naive version of RL post-training benchmark. When developing the benchmark, we are following principles below:
-- Keeping code simple is the highest priority.
-- Performance is not in our consideration.
+我们正在开发一个最简版的 RL 后训练基准测试。开发时遵循以下原则：
+- 保持代码简洁是最高优先级
+- 性能不在考虑范围内
 
-## Technical decisions:
+## 技术决策：
 
-- We don't want to re-invent the repo-level coding. So we want to employ exsiting coder to generate repository-level code.
-  - candidates: aider, openhands.
+- 我们不想重新发明仓库级代码生成。所以打算使用现有的 coder 来生成仓库级代码。
+  - 候选：aider, openhands
 
 ## TODO:
 
@@ -16,11 +16,11 @@ We are developing a most naive version of RL post-training benchmark. When devel
   - related code:
     - `rdagent/components/coder/CoSTEER/evolving_strategy.py`
 
-# Coding Principles
-Don't catch unknown exceptions when implementing new code. I prefer to let the error propagate so it can be detected and fixed promptly.
+# 编码原则
+实现新代码时不要捕获未知异常。我倾向于让错误传播，以便及时发现和修复。
 
-# Potential Refactoring backlog
-## Framework
-- Make it simpler to build a new CoSTEER coder (xiao is thinking about it).
-  - related code: `rdagent/components/coder/rl/costeer.py`
--  in `rdagent/core/experiment.py`:  can we create a new Workspace in the Generic class?
+# 潜在重构待办
+## 框架
+- 简化构建新 CoSTEER coder 的流程 (xiao 正在思考)
+  - 相关代码: `rdagent/components/coder/rl/costeer.py`
+- 在 `rdagent/core/experiment.py` 中：能否在 Generic 类中创建新的 Workspace？

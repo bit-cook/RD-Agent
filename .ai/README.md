@@ -1,3 +1,3 @@
-# Introduction
+# 简介
 
-We believe users rely on AI-powered tools to complete tasks. Our goal is to gather the task context in one folder, so users can quickly build their own AI-powered tools to follow the context and keep working on the tasks.
+我们相信用户依赖 AI 工具来完成任务。我们的目标是将任务上下文集中在一个文件夹中，让用户可以快速构建自己的 AI 工具，遵循上下文并持续推进任务。

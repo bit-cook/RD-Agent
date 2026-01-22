@@ -69,10 +69,7 @@ class RLPostTrainingRunner(Developer):
             logger.info(f"=== Starting AutoRL-Bench Evaluation ({benchmark}) ===")
             try:
                 evaluator = RLAutoRLEvaluator(timeout=RL_RD_SETTING.benchmark_timeout)
-                bench_results = evaluator.run(
-                    benchmark,
-                    data_path=RL_RD_SETTING.local_data_path,
-                )
+                bench_results = evaluator.run(benchmark)
                 exp.result["benchmark"] = bench_results
             except Exception as exc:
                 logger.warning(f"Benchmark evaluation failed: {exc}")

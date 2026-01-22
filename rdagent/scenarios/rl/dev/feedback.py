@@ -58,75 +58,59 @@ class RLExperiment2Feedback(Experiment2Feedback):
         benchmark: str | None,
     ) -> HypothesisFeedback:
         """Generate feedback using LLM."""
-        try:
-            system_prompt = T(".prompts:exp_feedback.system").r()
-            user_prompt = T(".prompts:exp_feedback.user").r(
-                hypothesis=hypothesis,
-                task_desc=task_desc,
-                exit_code=exit_code,
-                stdout=stdout,
-                running_time=running_time,
-                benchmark=benchmark,
-                exception=None,
-            )
-            
-            resp = APIBackend().build_messages_and_create_chat_completion(
-                user_prompt=user_prompt,
-                system_prompt=system_prompt,
-                json_mode=True,
-            )
-            resp_dict = json.loads(resp)
-            
-            decision = resp_dict.get("decision", exit_code == 0)
-            reason = resp_dict.get("reason", "")
-            suggestions = resp_dict.get("suggestions", "")
-            
-            logger.info(f"Feedback: decision={decision}, reason={reason[:100]}...")
-            
-            return HypothesisFeedback(
-                decision=decision,
-                reason=reason,
-                code_change_summary=suggestions,
-            )
-        except Exception as e:
-            logger.warning(f"LLM feedback failed: {e}, using default")
-            return HypothesisFeedback(
-                decision=exit_code == 0,
-                reason=f"Exit code: {exit_code}",
-                code_change_summary="",
-            )
+        system_prompt = T(".prompts:exp_feedback.system").r()
+        user_prompt = T(".prompts:exp_feedback.user").r(
+            hypothesis=hypothesis,
+            task_desc=task_desc,
+            exit_code=exit_code,
+            stdout=stdout,
+            running_time=running_time,
+            benchmark=benchmark,
+            exception=None,
+        )
+
+        resp = APIBackend().build_messages_and_create_chat_completion(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            json_mode=True,
+        )
+        resp_dict = json.loads(resp)
+
+        decision = resp_dict.get("decision", exit_code == 0)
+        reason = resp_dict.get("reason", "")
+        suggestions = resp_dict.get("suggestions", "")
+
+        logger.info(f"Feedback: decision={decision}, reason={reason[:100]}...")
+
+        return HypothesisFeedback(
+            decision=decision,
+            reason=reason,
+            code_change_summary=suggestions,
+        )
 
     def _gen_error_feedback(self, hypothesis: str, error_info: str) -> HypothesisFeedback:
         """Generate feedback for failed experiments."""
-        try:
-            system_prompt = T(".prompts:exp_feedback_error.system").r()
-            user_prompt = T(".prompts:exp_feedback_error.user").r(
-                hypothesis=hypothesis,
-                error_info=error_info,
-            )
-            
-            resp = APIBackend().build_messages_and_create_chat_completion(
-                user_prompt=user_prompt,
-                system_prompt=system_prompt,
-                json_mode=True,
-            )
-            resp_dict = json.loads(resp)
-            
-            error_type = resp_dict.get("error_type", "Unknown")
-            root_cause = resp_dict.get("root_cause", error_info)
-            fix_suggestion = resp_dict.get("fix_suggestion", "")
-            
-            logger.error(f"Error feedback: {error_type} - {root_cause[:100]}...")
-            
-            return HypothesisFeedback(
-                decision=False,
-                reason=f"[{error_type}] {root_cause}",
-                code_change_summary=fix_suggestion,
-            )
-        except Exception as e:
-            logger.warning(f"LLM error feedback failed: {e}")
-            return HypothesisFeedback(
-                decision=False,
-                reason=error_info,
-                code_change_summary="",
-            )
+        system_prompt = T(".prompts:exp_feedback_error.system").r()
+        user_prompt = T(".prompts:exp_feedback_error.user").r(
+            hypothesis=hypothesis,
+            error_info=error_info,
+        )
+
+        resp = APIBackend().build_messages_and_create_chat_completion(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            json_mode=True,
+        )
+        resp_dict = json.loads(resp)
+
+        error_type = resp_dict.get("error_type", "Unknown")
+        root_cause = resp_dict.get("root_cause", error_info)
+        fix_suggestion = resp_dict.get("fix_suggestion", "")
+
+        logger.error(f"Error feedback: {error_type} - {root_cause[:100]}...")
+
+        return HypothesisFeedback(
+            decision=False,
+            reason=f"[{error_type}] {root_cause}",
+            code_change_summary=fix_suggestion,
+        )

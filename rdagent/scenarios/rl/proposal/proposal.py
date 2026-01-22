@@ -1,5 +1,6 @@
 import json
 
+from rdagent.app.rl.conf import RL_RD_SETTING
 from rdagent.core.proposal import ExpGen, Hypothesis, Trace
 from rdagent.core.scenario import Scenario
 from rdagent.log import rdagent_logger as logger
@@ -7,11 +8,6 @@ from rdagent.oai.llm_utils import APIBackend
 from rdagent.scenarios.rl.eval.task import RLTask
 from rdagent.scenarios.rl.experiment.experiment import RLExperiment
 from rdagent.utils.agent.tpl import T
-
-
-# 默认模型路径
-DEFAULT_MODEL_PATH = "/models/Qwen2.5-Coder-0.5B-Instruct"
-DEFAULT_TRAIN_DATA_PATH = "/data/gsm8k/train.jsonl"
 
 
 
@@ -33,8 +29,6 @@ class RLPostTrainingExpGen(ExpGen):
         rl_task = RLTask(
             name=f"RLTask_{hypothesis_data.get('algorithm', 'PPO')}",
             description=hypothesis_data.get("hypothesis", "Train RL agent"),
-            model_path=DEFAULT_MODEL_PATH,
-            data_path=DEFAULT_TRAIN_DATA_PATH,
         )
         hypothesis = Hypothesis(
             hypothesis=hypothesis_data.get("hypothesis", "Train RL agent"),
@@ -63,24 +57,15 @@ class RLPostTrainingExpGen(ExpGen):
 
     def _gen_hypothesis_with_llm(self, trace_summary: str) -> dict:
         """Generate hypothesis using LLM."""
-        try:
-            system_prompt = T(".prompts:hypothesis_gen.system").r()
-            user_prompt = T(".prompts:hypothesis_gen.user").r(
-                model_path=DEFAULT_MODEL_PATH,
-                trace_summary=trace_summary,
-            )
-            
-            resp = APIBackend().build_messages_and_create_chat_completion(
-                user_prompt=user_prompt,
-                system_prompt=system_prompt,
-                json_mode=True,
-            )
-            return json.loads(resp)
-        except Exception as e:
-            # TODO: don't catch unknown exceptions
-            logger.warning(f"LLM hypothesis generation failed: {e}, using default")
-            return {
-                "hypothesis": "Train RL agent using PPO algorithm",
-                "reason": "PPO is stable and suitable for initial experiments",
-                "algorithm": "PPO",
-            }
+        system_prompt = T(".prompts:hypothesis_gen.system").r()
+        user_prompt = T(".prompts:hypothesis_gen.user").r(
+            base_model=RL_RD_SETTING.base_model or "",
+            trace_summary=trace_summary,
+        )
+
+        resp = APIBackend().build_messages_and_create_chat_completion(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            json_mode=True,
+        )
+        return json.loads(resp)
