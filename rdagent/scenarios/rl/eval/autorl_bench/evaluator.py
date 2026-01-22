@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Optional, Tuple
 
 import yaml
 
@@ -34,6 +34,30 @@ class Evaluator:
         self.legacy_dir = base_dir / "configs" / "scenarios"
         self.runs_dir = runs_dir or (base_dir / "runs")
 
+    def _resolve_local_data_mount(
+        self, data_path: str
+    ) -> Tuple[Optional[str], Mapping[str, dict[str, str]]]:
+        if data_path.startswith("file://"):
+            data_path = data_path[len("file://") :]
+        if "://" in data_path:
+            return None, {}
+
+        host_path = Path(data_path).expanduser()
+        if not host_path.is_absolute():
+            host_path = (Path.cwd() / host_path).resolve()
+        if not host_path.exists():
+            return None, {}
+
+        if host_path.is_file():
+            container_path = f"/data/{host_path.name}"
+            mount_src = host_path.parent
+        else:
+            container_path = "/data"
+            mount_src = host_path
+
+        extra_volumes = {str(mount_src): {"bind": "/data", "mode": "ro"}}
+        return container_path, extra_volumes
+
     def _status_path(self, output_dir: Path) -> Path:
         return output_dir / "status.json"
 
@@ -44,7 +68,13 @@ class Evaluator:
         with self._status_path(output_dir).open("w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
-    def run(self, scenario_name: str, overrides: dict[str, Any] | None = None, run_id: str | None = None) -> RunHandle:
+    def run(
+        self,
+        scenario_name: str,
+        overrides: dict[str, Any] | None = None,
+        run_id: str | None = None,
+        timeout: int | None = None,
+    ) -> RunHandle:
         scenario_file = find_scenario(scenario_name, [self.scenarios_dir, self.legacy_dir])
         scenario = apply_overrides(scenario_file.scenario, overrides)
         adapter = get_adapter(scenario.effective_benchmark())
@@ -56,6 +86,12 @@ class Evaluator:
         # Ensure container user can write into the mounted output dir.
         output_dir.chmod(0o777)
         self._write_status(output_dir, "running")
+
+        extra_volumes: Mapping[str, dict[str, str]] = {}
+        container_data_path, data_mount = self._resolve_local_data_mount(scenario.data_path)
+        if container_data_path:
+            scenario = scenario.model_copy(update={"data_path": container_data_path})
+            extra_volumes = data_mount
 
         resolved_scenario_path = output_dir / "scenario.yaml"
         with resolved_scenario_path.open("w", encoding="utf-8") as f:
@@ -89,7 +125,9 @@ class Evaluator:
                     scenario_path=resolved_scenario_path,
                     output_dir=output_dir,
                     entry_args=entry_args + ["--stage", "codegen"],
+                    extra_volumes=extra_volumes,
                     env=env,
+                    timeout=timeout,
                 )
                 _ensure_success("codegen", codegen)
 
@@ -102,7 +140,9 @@ class Evaluator:
                     read_only=True,
                     cap_drop_all=True,
                     pids_limit=256,
+                    extra_volumes=extra_volumes,
                     env=env,
+                    timeout=timeout,
                 )
                 _ensure_success("evaluate", evaluate)
             else:
@@ -111,7 +151,9 @@ class Evaluator:
                     scenario_path=resolved_scenario_path,
                     output_dir=output_dir,
                     entry_args=entry_args,
+                    extra_volumes=extra_volumes,
                     env=env,
+                    timeout=timeout,
                 )
                 _ensure_success("run", result)
 

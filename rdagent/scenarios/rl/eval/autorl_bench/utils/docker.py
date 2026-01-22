@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shlex
 from pathlib import Path
+from typing import Mapping
 
 from pydantic_settings import SettingsConfigDict
 
@@ -25,10 +26,12 @@ def run_container(
     output_dir: Path,
     entry_args: list[str] | None = None,
     env: dict[str, str] | None = None,
+    extra_volumes: Mapping[str, dict[str, str]] | None = None,
     network: str | None = "host",
     read_only: bool = False,
     cap_drop_all: bool = False,
     pids_limit: int | None = None,
+    timeout: int | None = None,
 ) -> EnvResult:
     output_dir.mkdir(parents=True, exist_ok=True)
     entry_args = entry_args or []
@@ -42,6 +45,8 @@ def run_container(
         "cap_drop_all": cap_drop_all,
         "pids_limit": pids_limit,
     }
+    if timeout is not None:
+        conf_kwargs["running_timeout_period"] = timeout if timeout > 0 else None
     if network is not None:
         conf_kwargs["network"] = network
 
@@ -52,10 +57,13 @@ def run_container(
     scenario_path = scenario_path.resolve()
     output_dir = output_dir.resolve()
     scenario_mount = {str(scenario_path): {"bind": "/scenario.yaml", "mode": "ro"}}
+    running_extra_volume = dict(scenario_mount)
+    if extra_volumes:
+        running_extra_volume.update(extra_volumes)
 
     return docker_env.run(
         entry=conf.default_entry,
         local_path=str(output_dir),
         env=env,
-        running_extra_volume=scenario_mount,
+        running_extra_volume=running_extra_volume,
     )

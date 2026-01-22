@@ -24,6 +24,13 @@ class RLExperiment2Feedback(Experiment2Feedback):
         exit_code = result.get("exit_code", -1)
         stdout = result.get("stdout", "")
         running_time = result.get("running_time", 0)
+        benchmark = result.get("benchmark")
+        benchmark_summary = None
+        if benchmark:
+            try:
+                benchmark_summary = json.dumps(benchmark, ensure_ascii=False, indent=2)
+            except TypeError:
+                benchmark_summary = str(benchmark)
         
         # 获取假设和任务描述
         hypothesis = str(exp.hypothesis) if exp.hypothesis else "N/A"
@@ -38,10 +45,17 @@ class RLExperiment2Feedback(Experiment2Feedback):
             exit_code=exit_code,
             stdout=stdout,
             running_time=running_time,
+            benchmark=benchmark_summary,
         )
 
     def _gen_feedback_with_llm(
-        self, hypothesis: str, task_desc: str, exit_code: int, stdout: str, running_time: float
+        self,
+        hypothesis: str,
+        task_desc: str,
+        exit_code: int,
+        stdout: str,
+        running_time: float,
+        benchmark: str | None,
     ) -> HypothesisFeedback:
         """Generate feedback using LLM."""
         try:
@@ -52,6 +66,7 @@ class RLExperiment2Feedback(Experiment2Feedback):
                 exit_code=exit_code,
                 stdout=stdout,
                 running_time=running_time,
+                benchmark=benchmark,
                 exception=None,
             )
             

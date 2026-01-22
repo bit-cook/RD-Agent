@@ -28,6 +28,10 @@ exp_feedback:
     - stdout (前1000字符):
     {{ stdout[:1000] }}
     {% endif %}
+    {% if benchmark %}
+    ## Benchmark 结果
+    {{ benchmark }}
+    {% endif %}
 
     {% if exception %}
     ## 异常信息
@@ -57,4 +61,3 @@ exp_feedback_error:
     {{ error_info }}
 
     请分析错误原因并给出修复建议。
-

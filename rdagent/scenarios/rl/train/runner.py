@@ -4,10 +4,12 @@ RL Runner - Execute RL training code in Docker
 参考 SFT: rdagent/scenarios/finetune/train/runner.py
 """
 
+from rdagent.app.rl.conf import RL_RD_SETTING
 from rdagent.core.developer import Developer
 from rdagent.core.experiment import Experiment
 from rdagent.core.scenario import Scenario
 from rdagent.log import rdagent_logger as logger
+from rdagent.scenarios.rl.eval.benchmark import RLAutoRLEvaluator
 from rdagent.scenarios.rl.env.conf import get_rl_env, RL_WORKSPACE_DIR
 
 
@@ -59,5 +61,23 @@ class RLPostTrainingRunner(Developer):
             "stdout": result.stdout,
             "running_time": result.running_time,
         }
+
+        benchmark = RL_RD_SETTING.benchmark
+        if not benchmark and exp.sub_tasks:
+            benchmark = getattr(exp.sub_tasks[0], "benchmark", "")
+        if benchmark and result.exit_code == 0:
+            logger.info(f"=== Starting AutoRL-Bench Evaluation ({benchmark}) ===")
+            try:
+                evaluator = RLAutoRLEvaluator(timeout=RL_RD_SETTING.benchmark_timeout)
+                bench_results = evaluator.run(
+                    benchmark,
+                    data_path=RL_RD_SETTING.local_data_path,
+                )
+                exp.result["benchmark"] = bench_results
+            except Exception as exc:
+                logger.warning(f"Benchmark evaluation failed: {exc}")
+                exp.result["benchmark"] = {"error": str(exc)}
+        elif benchmark:
+            logger.info("Skip benchmark evaluation due to training failure.")
         
         return exp
