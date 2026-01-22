@@ -7,6 +7,7 @@ import pickle
 from pathlib import Path
 
 import pandas as pd
+from pandas.io.formats.style import Styler
 import streamlit as st
 
 from rdagent.app.finetune.llm.ui.benchmarks import get_core_metric_score
@@ -354,7 +355,7 @@ def style_status_cell(val: str, decision: bool | None = None) -> str:
     return ""
 
 
-def style_df_with_decisions(df: pd.DataFrame, decisions_df: pd.DataFrame) -> pd.io.formats.style.Styler:
+def style_df_with_decisions(df: pd.DataFrame, decisions_df: pd.DataFrame) -> Styler:
     """Apply styling to dataframe based on decision data
 
     Args:
