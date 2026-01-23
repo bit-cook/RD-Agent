@@ -38,6 +38,7 @@ class RLDockerConf(DockerConf):
 
 def _image_exists(image_name: str) -> bool:
     """检查 Docker 镜像是否存在"""
+    # TODO: maybe we don't need this.
     client = docker.from_env()
     try:
         client.images.get(image_name)

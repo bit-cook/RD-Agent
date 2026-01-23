@@ -112,6 +112,8 @@ class FileStorage(Storage):
             path = path.with_suffix(".pkl")
             with path.open("wb") as f:
                 pickle.dump(obj, f)
+            # TODO: save_type: list[Literal["json", "text", "pkl"]]  = ["pkl", "json"]
+            # for save_type in save_type:
             try:
                 json_path = path.with_suffix(".json")
                 with json_path.open("w", encoding="utf-8") as f:

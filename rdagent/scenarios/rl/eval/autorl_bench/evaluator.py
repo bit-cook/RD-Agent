@@ -78,7 +78,6 @@ class Evaluator:
         scenario_file = find_scenario(scenario_name, [self.scenarios_dir, self.legacy_dir])
         scenario = apply_overrides(scenario_file.scenario, overrides)
         adapter = get_adapter(scenario.effective_benchmark())
-        adapter.validate(scenario)
 
         run_id = run_id or f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         output_dir = self.runs_dir / run_id

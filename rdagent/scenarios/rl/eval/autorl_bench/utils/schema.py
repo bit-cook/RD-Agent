@@ -17,6 +17,10 @@ class ModelConfig(BaseModel):
 
 
 class Scenario(BaseModel):
+    """
+    Benchmark Config
+    """
+    # TODO: please use existing settings like `class RLDockerConf(DockerConf):`
     name: Optional[str] = None
     model_path: str
     data_path: str

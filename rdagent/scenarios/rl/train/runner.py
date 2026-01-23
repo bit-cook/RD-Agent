@@ -11,6 +11,7 @@ from rdagent.core.scenario import Scenario
 from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.rl.eval.benchmark import RLAutoRLEvaluator
 from rdagent.scenarios.rl.env.conf import get_rl_env, RL_WORKSPACE_DIR
+from rdagent.scenarios.rl.eval.core.utils import load_benchmark
 
 
 class RLPostTrainingRunner(Developer):
@@ -30,6 +31,10 @@ class RLPostTrainingRunner(Developer):
         3. 返回更新后的 experiment
         """
         workspace = exp.experiment_workspace
+        
+        # TODO: call  benchmark
+        # benchmark = load_benchmark(RL_RD_SETTING.benchmark)
+        # benchmark.run(workspace)
         
         if workspace is None:
             logger.warning("No workspace found in experiment")

@@ -12,9 +12,17 @@
 
 ## TODO:
 
-- [ ] (xiao)repo-level coder may not provide interfaces that fits curernt CoSTEER's interface.
+- [/] (xiao)repo-level coder may not provide interfaces that fits curernt CoSTEER's interface.
   - related code:
     - `rdagent/components/coder/CoSTEER/evolving_strategy.py`
+  - This is not required.
+  - Key question:
+    - Do we have requirements to launch multiple runs?
+    - Extremely long code (2~3K lines)
+
+- UI:
+  - Ideal UI: if we use same framework, we expect a unified UI for all scenarios.
+    - BUT: Current UI may not be general enough for all scenarios.
 
 # 编码原则
 实现新代码时不要捕获未知异常。我倾向于让错误传播，以便及时发现和修复。

@@ -20,15 +20,8 @@ class ResultBundle:
 class BenchmarkAdapter(ABC):
     name: str
 
-    def validate(self, scenario: Scenario) -> None:
-        if not scenario.metric:
-            raise ValueError("Scenario.metric is required")
-
     def default_image(self) -> str:
         return ""
-
-    def run_in_container(self) -> bool:
-        return True
 
     @abstractmethod
     def run(self, scenario: Scenario, output_dir: Path, stage: Optional[str] = None) -> ResultBundle:

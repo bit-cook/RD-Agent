@@ -137,7 +137,7 @@ class LiteLLMAPIBackend(APIBackend):
 
         if response_format and not supports_response_schema(
             model=LITELLM_SETTINGS.chat_model,
-            custom_llm_provider=None,
+            custom_llm_provider=None,  # NOTE: why do we add this?
         ):
             # Deepseek will enter this branch
             logger.warning(
