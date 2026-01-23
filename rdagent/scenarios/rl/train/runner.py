@@ -39,8 +39,8 @@ class RLPostTrainingRunner(Developer):
             logger.warning("No main.py found in workspace")
             return exp
         
-        # 获取 Docker 环境
-        env = get_rl_env(timeout=self.timeout)
+        # 获取 Docker 环境（根据 benchmark 自动选择镜像）
+        env = get_rl_env(benchmark=RL_RD_SETTING.benchmark, timeout=self.timeout)
         
         # 执行训练
         logger.info("=== Starting RL Training in Docker ===")

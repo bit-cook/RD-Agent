@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # LLM post-training 库（trl 会自动安装兼容的 transformers、accelerate、datasets）
-RUN pip install --no-cache-dir trl==0.27.0 peft
+RUN pip install --no-cache-dir trl==0.27.0 peft verl==0.7.0
 
 # 默认入口
 CMD ["bash"]

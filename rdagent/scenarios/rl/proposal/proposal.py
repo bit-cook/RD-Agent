@@ -50,8 +50,16 @@ class RLPostTrainingExpGen(ExpGen):
         
         summaries = []
         for i, (exp, feedback) in enumerate(trace.hist[-3:]):  # 最近3个实验
-            status = "成功" if feedback and feedback.decision else "失败"
-            summaries.append(f"实验{i+1}: {exp.hypothesis.hypothesis if exp.hypothesis else 'N/A'} - {status}")
+            status = "成功" if feedback is not None and feedback.decision else "失败"
+            hypothesis = exp.hypothesis.hypothesis if exp.hypothesis else "N/A"
+            summaries.append(f"### 实验{i+1}: {hypothesis}")
+            summaries.append(f"- 结果: {status}")
+            # 添加失败原因和建议
+            if feedback is not None:
+                if getattr(feedback, 'reason', None):
+                    summaries.append(f"- 原因: {feedback.reason}")
+                if getattr(feedback, 'code_change_summary', None):
+                    summaries.append(f"- 建议: {feedback.code_change_summary}")
         
         return "\n".join(summaries)
 
