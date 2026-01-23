@@ -21,16 +21,14 @@ AutoRL-Bench/
 │
 ├── autorl_bench/           # Benchmark 核心
 │   ├── server.py           # API 服务
-│   ├── scenarios/          # 场景定义 (4个字段: model_path, data_path, baseline, metric)
+│   ├── benchmarks/         # 按 benchmark 分子目录（adapter/scenarios/env）
+│   │   ├── gsm8k/
+│   │   ├── evalplus/
+│   │   ├── miniwob/
+│   │   ├── base/            # base Dockerfile
+│   │   └── common/          # entry.py
 │   └── evaluator.py        # 评测器 (封装 Inspect)
 │
-│
-├── env/                    # 执行环境 (可 Docker 隔离)
-│   ├── entry.py            # 统一入口
-│   ├── training/
-│   │   └── Dockerfile
-│   └── eval/
-│       └── Dockerfile
 │
 ├── libs(in docker)/                   # RL 训练框架 (不上传 git)
 │   ├── verl/               # git clone 预装
@@ -43,7 +41,6 @@ AutoRL-Bench/
 │
 ├── log/                    # (ours) 服务日志
 ├── test/                   # (ours) 测试脚本
-└── configs/                # 配置文件
 
 ------- Not part of the repo
 ├── assets/                 # 资源 (不上传 git)

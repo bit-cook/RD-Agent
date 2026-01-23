@@ -39,9 +39,9 @@ PY
 
 ### C) 统一执行入口（容器内/本地）
 
-用 `rdagent/scenarios/rl/eval/autorl_bench/env/entry.py`：
+用 `rdagent/scenarios/rl/eval/autorl_bench/benchmarks/common/entry.py`：
 
-- `python env/entry.py eval --scenario <yaml> --output <dir>`
+- `python rdagent/scenarios/rl/eval/autorl_bench/benchmarks/common/entry.py eval --scenario <yaml> --output <dir>`
 - 由 `Evaluator` 在容器中调用（默认）
 
 ---
@@ -50,9 +50,24 @@ PY
 
 ```
 autorl_bench/
-  benchmarks/          # 每个 benchmark 一个 Adapter（gsm8k/evalplus/miniwob）
-  scenarios/           # 内置 scenario YAML（*.yaml）
-  utils/               # schema / docker runner / IO / download
+  benchmarks/          # 按 benchmark 分子目录（adapter/scenarios/env）
+    gsm8k/
+      adapter.py
+      scenarios/
+      env/
+    evalplus/
+      adapter.py
+      scenarios/
+      env/
+    miniwob/
+      adapter.py
+      scenarios/
+      env/
+    base/
+      env/
+    common/
+      entry.py
+  utils/               # schema / IO / download
   evaluator.py         # 评测编排器（最常用）
   server.py            # FastAPI 服务
   __init__.py
@@ -100,7 +115,7 @@ PY
 
 ### 4.2 用环境变量覆盖模型配置（常用）
 
-这些变量会被 `env/entry.py` 读取，并透传进容器：
+这些变量会被 `benchmarks/common/entry.py` 读取，并透传进容器：
 
 ```bash
 export OPENAI_API_KEY="..."
@@ -142,14 +157,12 @@ scenario 文件会被加载为 `autorl_bench.utils.schema.Scenario`（Pydantic�
 
 ```yaml
 # 必填
+benchmark: gsm8k                   # 或使用与 adapter 同名的文件名
+docker_image: autorl-bench/eval-gsm8k:0.1
 model_path: openai_compat://my-model
 data_path: hf://openai/gsm8k
-baseline: baselines/gsm8k.json   # 作为 meta 记录（可为任意 YAML/JSON 友好对象）
+baseline: baselines/gsm8k.json     # 作为 meta 记录（可为任意 YAML/JSON 友好对象）
 metric: accuracy
-
-# 可选
-benchmark: gsm8k
-docker_image: autorl-bench/eval-gsm8k:0.1
 
 model:
   provider: openai_compat
@@ -161,14 +174,38 @@ model:
 params:
   split: test
   limit: 100
+
+stages:
+  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output"
+    network: host
 ```
 
 ### 5.2 scenario 如何被定位
 
-`Evaluator` 默认会在两处找 `<scenario_name>.yaml`：
+`Evaluator` 默认会在此处找 `<scenario_name>.yaml`：
 
-1) `autorl_bench/scenarios/`（本包内置）  
-2) `../configs/scenarios/`（兼容旧位置）  
+1) `autorl_bench/benchmarks/*/scenarios/`（本包内置）
+
+### 5.3 stages（必填）
+
+`stages` 是评测执行的阶段列表（**必须提供**）。每个 stage 是一个 dict，至少包含 `entry`：
+
+```yaml
+stages:
+  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output"
+    network: host
+    read_only: false
+    cap_drop_all: false
+    pids_limit: null
+```
+
+字段说明：
+
+- `entry`：必填，容器内执行命令
+- `network`：可选，`host` / `none`（默认 `host`）
+- `read_only`：可选，默认 `false`
+- `cap_drop_all`：可选，默认 `false`
+- `pids_limit`：可选，默认 `null`
 
 ---
 
@@ -198,9 +235,9 @@ params:
 
 ## 7. Benchmarks（内置 3 个）怎么用
 
-> 场景模板见 `autorl_bench/scenarios/*.yaml`。下面列的是各 benchmark 关心的 `data_path/params`。
+> 场景模板见 `autorl_bench/benchmarks/*/scenarios/*.yaml`。下面列的是各 benchmark 关心的 `data_path/params`。
 
-### 7.1 GSM8K（`benchmarks/gsm8k_inspect.py`）
+### 7.1 GSM8K（`benchmarks/gsm8k/adapter.py`）
 
 `data_path`：
 
@@ -218,7 +255,7 @@ params:
 
 输出主指标：`accuracy`
 
-### 7.2 EvalPlus（`benchmarks/evalplus_runner.py`）
+### 7.2 EvalPlus（`benchmarks/evalplus/adapter.py`）
 
 `data_path`：
 
@@ -238,7 +275,7 @@ params:
 
 输出主指标：`pass@1`
 
-### 7.3 MiniWoB（`benchmarks/miniwob_runner.py`）
+### 7.3 MiniWoB（`benchmarks/miniwob/adapter.py`）
 
 `params`：
 
@@ -264,15 +301,15 @@ params:
 - `autorl-bench/eval-evalplus:0.1`
 - `autorl-bench/eval-miniwob:0.1`
 
-Dockerfile 位于：`rdagent/scenarios/rl/eval/autorl_bench/env/eval/`。
+Dockerfile 位于：`rdagent/scenarios/rl/eval/autorl_bench/benchmarks/<name>/env/`。
 
 本地构建示例（从 RD-Agent repo root 执行）：
 
 ```bash
 cd rdagent/scenarios/rl/eval/autorl_bench
-docker build -f env/eval/Dockerfile.gsm8k      -t autorl-bench/eval-gsm8k:0.1      .
-docker build -f env/eval/Dockerfile.evalplus   -t autorl-bench/eval-evalplus:0.1   .
-docker build -f env/eval/Dockerfile.miniwob    -t autorl-bench/eval-miniwob:0.1    .
+docker build -f benchmarks/gsm8k/env/Dockerfile.gsm8k      -t autorl-bench/eval-gsm8k:0.1      .
+docker build -f benchmarks/evalplus/env/Dockerfile.evalplus   -t autorl-bench/eval-evalplus:0.1   .
+docker build -f benchmarks/miniwob/env/Dockerfile.miniwob    -t autorl-bench/eval-miniwob:0.1    .
 ```
 
 ---
@@ -308,7 +345,7 @@ curl -s http://127.0.0.1:8000/runs/<run_id>/artifacts
 
 ---
 
-## 10. 统一入口：`env/entry.py`（本地直跑/容器内执行）
+## 10. 统一入口：`benchmarks/common/entry.py`（本地直跑/容器内执行）
 
 容器内默认会跑：
 
@@ -316,12 +353,14 @@ curl -s http://127.0.0.1:8000/runs/<run_id>/artifacts
 python /app/env_entry.py eval --scenario /scenario.yaml --output /output
 ```
 
+> `benchmarks/common/entry.py` 是入口脚本的源码；构建镜像时需确保其被复制到容器内的 `/app/env_entry.py`。
+
 本地直跑（你自行保证依赖安装齐全）：
 
 ```bash
-python rdagent/scenarios/rl/eval/autorl_bench/env/entry.py \
+python rdagent/scenarios/rl/eval/autorl_bench/benchmarks/common/entry.py \
   eval \
-  --scenario rdagent/scenarios/rl/eval/autorl_bench/scenarios/gsm8k.yaml \
+  --scenario rdagent/scenarios/rl/eval/autorl_bench/benchmarks/gsm8k/scenarios/gsm8k.yaml \
   --output /tmp/autorl_bench_out
 ```
 
@@ -329,6 +368,7 @@ python rdagent/scenarios/rl/eval/autorl_bench/env/entry.py \
 
 ## 11. 扩展：新增 benchmark / scenario（最短路径）
 
-1) 新增 Adapter：在 `autorl_bench/benchmarks/` 新建文件，实现 `BenchmarkAdapter.run(...)`  
+1) 新增 Adapter：在 `autorl_bench/benchmarks/<name>/adapter.py` 实现 `BenchmarkAdapter.run(...)`  
 2) 注册 Adapter：编辑 `autorl_bench/benchmarks/__init__.py` 的 `_REGISTRY`  
-3) 新增 scenario：在 `autorl_bench/scenarios/` 加一个 `<name>.yaml`，填好 `benchmark/docker_image/params`  
+3) 新增 Dockerfile：在 `autorl_bench/benchmarks/<name>/env/` 放置 `Dockerfile.<name>`  
+4) 新增 scenario：在 `autorl_bench/benchmarks/<name>/scenarios/` 加一个 `<name>.yaml`，**必须包含** `docker_image` 与 `stages`  

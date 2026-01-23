@@ -19,3 +19,12 @@ params:
   greedy: true
   timeout_sec: 3
   n_samples: 1
+
+stages:
+  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output --stage codegen"
+    network: host
+  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output --stage evaluate"
+    network: none
+    read_only: true
+    cap_drop_all: true
+    pids_limit: 256

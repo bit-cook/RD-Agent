@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional
 
-from autorl_bench.benchmarks.base import BenchmarkAdapter, ResultBundle
+from autorl_bench.benchmarks.core import BenchmarkAdapter, ResultBundle
 from autorl_bench.utils.schema import Scenario
 
 

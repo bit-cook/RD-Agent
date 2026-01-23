@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import gymnasium as gym
 
-from autorl_bench.benchmarks.base import BenchmarkAdapter, ResultBundle
+from autorl_bench.benchmarks.core import BenchmarkAdapter, ResultBundle
 from autorl_bench.utils.schema import Scenario
 
 

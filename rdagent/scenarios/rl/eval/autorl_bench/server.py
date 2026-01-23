@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from autorl_bench.evaluator import Evaluator
-from autorl_bench.scenarios.loader import list_scenarios, scenario_summary
+from autorl_bench.benchmarks.loader import list_scenarios, scenario_summary
 
 app = FastAPI(
     title="AutoRL-Bench",

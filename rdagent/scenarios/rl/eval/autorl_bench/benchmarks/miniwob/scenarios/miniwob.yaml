@@ -22,3 +22,7 @@ params:
   max_steps: 30
   seed: 123
   action_space: liu18
+
+stages:
+  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output"
+    network: host

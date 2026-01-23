@@ -19,3 +19,7 @@ params:
   fewshot: 0
   fewshot_seed: 42
   answer_regex: "(?i)####\\s*([-+]?\\d[\\d,]*\\.?\\d*)"
+
+stages:
+  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output"
+    network: host

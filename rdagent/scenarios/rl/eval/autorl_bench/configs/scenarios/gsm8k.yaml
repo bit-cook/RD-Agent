@@ -1,7 +1,0 @@
-# GSM8K 场景配置 - 只需要 4 个字段
-
-base_model_path: "assets/models/Qwen2.5-3B-Instruct"
-train_data_path: "assets/data/gsm8k/train.jsonl"
-baseline_score: 62.47
-metric: "accuracy"
-

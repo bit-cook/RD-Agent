@@ -7,24 +7,31 @@ from typing import Dict, List
 
 from autorl_bench.utils.schema import Scenario, ScenarioFile, find_scenario
 
-PROJECT_ROOT = Path(__file__).parent.parent  # now the package root
-SCENARIOS_DIR = Path(__file__).parent
-LEGACY_CONFIGS_DIR = PROJECT_ROOT / "configs" / "scenarios"
+BENCHMARKS_DIR = Path(__file__).parent
+
+
+def _scenario_dirs() -> List[Path]:
+    dirs: List[Path] = []
+    for bench_dir in BENCHMARKS_DIR.iterdir():
+        scenario_dir = bench_dir / "scenarios"
+        if scenario_dir.is_dir():
+            dirs.append(scenario_dir)
+    return dirs
 
 
 def load_scenario(scenario_id: str) -> Scenario:
-    scenario_file = find_scenario(scenario_id, [SCENARIOS_DIR, LEGACY_CONFIGS_DIR])
+    scenario_file = find_scenario(scenario_id, _scenario_dirs())
     return scenario_file.scenario
 
 
 def load_scenario_file(scenario_id: str) -> ScenarioFile:
-    return find_scenario(scenario_id, [SCENARIOS_DIR, LEGACY_CONFIGS_DIR])
+    return find_scenario(scenario_id, _scenario_dirs())
 
 
 def list_scenarios() -> List[str]:
-    names = {p.stem for p in SCENARIOS_DIR.glob("*.yaml")}
-    if LEGACY_CONFIGS_DIR.exists():
-        names.update({p.stem for p in LEGACY_CONFIGS_DIR.glob("*.yaml")})
+    names: set[str] = set()
+    for scenario_dir in _scenario_dirs():
+        names.update({p.stem for p in scenario_dir.glob("*.yaml")})
     return sorted(names)
 
 

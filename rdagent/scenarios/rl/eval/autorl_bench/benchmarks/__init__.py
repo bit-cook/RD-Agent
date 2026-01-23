@@ -3,13 +3,13 @@ from __future__ import annotations
 import importlib
 from typing import Dict, List
 
-from autorl_bench.benchmarks.base import BenchmarkAdapter
+from autorl_bench.benchmarks.core import BenchmarkAdapter
 
 
 _REGISTRY: Dict[str, str] = {
-    "gsm8k": "autorl_bench.benchmarks.gsm8k_inspect:Gsm8kInspectAdapter",
-    "evalplus": "autorl_bench.benchmarks.evalplus_runner:EvalPlusAdapter",
-    "miniwob": "autorl_bench.benchmarks.miniwob_runner:MiniWoBAdapter",
+    "gsm8k": "autorl_bench.benchmarks.gsm8k.adapter:Gsm8kInspectAdapter",
+    "evalplus": "autorl_bench.benchmarks.evalplus.adapter:EvalPlusAdapter",
+    "miniwob": "autorl_bench.benchmarks.miniwob.adapter:MiniWoBAdapter",
 }
 
 _INSTANCES: Dict[str, BenchmarkAdapter] = {}

@@ -29,7 +29,7 @@ class RLDockerConf(DockerConf):
     """RL Docker 配置"""
     build_from_dockerfile: bool = True
     dockerfile_folder_path: Path = RL_DOCKERFILE_DIR
-    dockerfile: str = "env/Dockerfile.base"
+    dockerfile: str = "benchmarks/base/env/Dockerfile.base"
     image: str = "autorl-bench/base:latest"
     mount_path: str = "/workspace"
     default_entry: str = "python main.py"
@@ -70,7 +70,7 @@ def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
     
     # 根据 benchmark 设置镜像名和 Dockerfile
     conf.image = f"autorl-bench/{benchmark}:latest"
-    conf.dockerfile = f"env/Dockerfile.{benchmark}"
+    conf.dockerfile = f"benchmarks/{benchmark}/env/Dockerfile.{benchmark}"
     
     # 检测镜像是否存在，存在则跳过构建
     if _image_exists(conf.image):

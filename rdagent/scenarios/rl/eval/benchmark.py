@@ -10,7 +10,7 @@ if str(EVAL_ROOT) not in sys.path:
     sys.path.insert(0, str(EVAL_ROOT))
 
 from autorl_bench.evaluator import Evaluator
-from autorl_bench.scenarios.loader import list_scenarios, load_scenario
+from autorl_bench.benchmarks.loader import list_scenarios, load_scenario
 
 from rdagent.log import rdagent_logger as logger
 from rdagent.log.conf import LOG_SETTINGS

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 from pydantic import BaseModel, Field
@@ -30,6 +30,7 @@ class Scenario(BaseModel):
     docker_image: Optional[str] = None
     model: Optional[ModelConfig] = None
     params: Dict[str, Any] = Field(default_factory=dict)
+    stages: List[Dict[str, Any]] = Field(default_factory=list)
 
     def effective_benchmark(self) -> str:
         if self.benchmark:

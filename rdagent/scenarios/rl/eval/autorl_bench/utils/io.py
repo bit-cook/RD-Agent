@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-from autorl_bench.benchmarks.base import ResultBundle
+from autorl_bench.benchmarks.core import ResultBundle
 
 
 def ensure_dir(path: Path) -> None:

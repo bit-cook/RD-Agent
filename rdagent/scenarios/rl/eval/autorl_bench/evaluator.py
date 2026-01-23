@@ -4,19 +4,20 @@ Evaluator orchestrator for AutoRL-Bench (eval-only).
 
 from __future__ import annotations
 
-import json
 import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Mapping
 
 import yaml
 
-from autorl_bench.benchmarks import get_adapter
-from autorl_bench.utils.docker import run_container
+from rdagent.utils.env import DockerConf, DockerEnv
 from autorl_bench.utils.schema import apply_overrides, find_scenario
+from autorl_bench.utils.scenario_paths import scenario_dirs
+from autorl_bench.utils.mounts import resolve_local_data_mount
+from autorl_bench.utils.status import write_status
 
 
 @dataclass
@@ -29,44 +30,9 @@ class RunHandle:
 class Evaluator:
     def __init__(self, scenarios_dir: Path | None = None, runs_dir: Path | None = None) -> None:
         base_dir = Path(__file__).parent
-        self.scenarios_dir = scenarios_dir or (base_dir / "scenarios")
-        # configs/ 与 runs/ 现在与本文件同级
-        self.legacy_dir = base_dir / "configs" / "scenarios"
+        self.custom_scenarios_dir = scenarios_dir
+        self.benchmarks_dir = base_dir / "benchmarks"
         self.runs_dir = runs_dir or (base_dir / "runs")
-
-    def _resolve_local_data_mount(
-        self, data_path: str
-    ) -> Tuple[Optional[str], Mapping[str, dict[str, str]]]:
-        if data_path.startswith("file://"):
-            data_path = data_path[len("file://") :]
-        if "://" in data_path:
-            return None, {}
-
-        host_path = Path(data_path).expanduser()
-        if not host_path.is_absolute():
-            host_path = (Path.cwd() / host_path).resolve()
-        if not host_path.exists():
-            return None, {}
-
-        if host_path.is_file():
-            container_path = f"/data/{host_path.name}"
-            mount_src = host_path.parent
-        else:
-            container_path = "/data"
-            mount_src = host_path
-
-        extra_volumes = {str(mount_src): {"bind": "/data", "mode": "ro"}}
-        return container_path, extra_volumes
-
-    def _status_path(self, output_dir: Path) -> Path:
-        return output_dir / "status.json"
-
-    def _write_status(self, output_dir: Path, status: str, details: dict[str, Any] | None = None) -> None:
-        payload: dict[str, Any] = {"status": status, "updated_at": datetime.utcnow().isoformat()}
-        if details:
-            payload.update(details)
-        with self._status_path(output_dir).open("w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
 
     def run(
         self,
@@ -75,19 +41,15 @@ class Evaluator:
         run_id: str | None = None,
         timeout: int | None = None,
     ) -> RunHandle:
-        scenario_file = find_scenario(scenario_name, [self.scenarios_dir, self.legacy_dir])
+        scenario_file = find_scenario(scenario_name, scenario_dirs(self.custom_scenarios_dir, self.benchmarks_dir))
         scenario = apply_overrides(scenario_file.scenario, overrides)
-        adapter = get_adapter(scenario.effective_benchmark())
-
         run_id = run_id or f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         output_dir = self.runs_dir / run_id
         output_dir.mkdir(parents=True, exist_ok=True)
-        # Ensure container user can write into the mounted output dir.
-        output_dir.chmod(0o777)
-        self._write_status(output_dir, "running")
+        write_status(output_dir, "running")
 
         extra_volumes: Mapping[str, dict[str, str]] = {}
-        container_data_path, data_mount = self._resolve_local_data_mount(scenario.data_path)
+        container_data_path, data_mount = resolve_local_data_mount(scenario.data_path)
         if container_data_path:
             scenario = scenario.model_copy(update={"data_path": container_data_path})
             extra_volumes = data_mount
@@ -97,7 +59,6 @@ class Evaluator:
             yaml.safe_dump(scenario.model_dump(), f, sort_keys=False, allow_unicode=False)
         resolved_scenario_path.chmod(0o644)
 
-        entry_args = ["eval", "--scenario", "/scenario.yaml", "--output", "/output"]
         env = {
             key: value
             for key in (
@@ -118,46 +79,46 @@ class Evaluator:
                 raise RuntimeError(f"{stage} failed (exit_code={result.exit_code}). stdout: {result.stdout}")
 
         try:
-            if scenario.effective_benchmark() == "evalplus" and scenario.params.get("mode", "two_stage") == "two_stage":
-                codegen = run_container(
-                    image=scenario.docker_image or adapter.default_image(),
-                    scenario_path=resolved_scenario_path,
-                    output_dir=output_dir,
-                    entry_args=entry_args + ["--stage", "codegen"],
-                    extra_volumes=extra_volumes,
-                    env=env,
-                    timeout=timeout,
-                )
-                _ensure_success("codegen", codegen)
+            if not scenario.docker_image:
+                raise ValueError(f"Scenario '{scenario.name}' has no docker_image configured.")
+            image = scenario.docker_image
+            stages = list(scenario.stages or [])
+            if not stages:
+                raise ValueError(f"Scenario '{scenario.name}' has no stages configured.")
 
-                evaluate = run_container(
-                    image=scenario.docker_image or adapter.default_image(),
-                    scenario_path=resolved_scenario_path,
-                    output_dir=output_dir,
-                    entry_args=entry_args + ["--stage", "evaluate"],
-                    network="none",
-                    read_only=True,
-                    cap_drop_all=True,
-                    pids_limit=256,
-                    extra_volumes=extra_volumes,
-                    env=env,
-                    timeout=timeout,
-                )
-                _ensure_success("evaluate", evaluate)
-            else:
-                result = run_container(
-                    image=scenario.docker_image or adapter.default_image(),
-                    scenario_path=resolved_scenario_path,
-                    output_dir=output_dir,
-                    entry_args=entry_args,
-                    extra_volumes=extra_volumes,
-                    env=env,
-                    timeout=timeout,
-                )
-                _ensure_success("run", result)
+            scenario_mount = {str(resolved_scenario_path): {"bind": "/scenario.yaml", "mode": "ro"}}
+            running_extra_volume = dict(scenario_mount)
+            if extra_volumes:
+                running_extra_volume.update(extra_volumes)
 
-            self._write_status(output_dir, "succeeded")
+            for idx, stage in enumerate(stages, start=1):
+                conf = DockerConf(
+                    image=image,
+                    mount_path="/output",
+                    default_entry=stage["entry"],
+                    read_only=stage.get("read_only", False),
+                    cap_drop_all=stage.get("cap_drop_all", False),
+                    pids_limit=stage.get("pids_limit"),
+                )
+                conf.enable_cache = False
+                conf.save_logs_to_file = True
+                if timeout is not None:
+                    conf.running_timeout_period = timeout if timeout > 0 else None
+                conf.network = stage.get("network", "host")
+
+                docker_env = DockerEnv(conf)
+                docker_env.prepare()
+
+                result = docker_env.run(
+                    entry=conf.default_entry,
+                    local_path=str(output_dir),
+                    env=env,
+                    running_extra_volume=running_extra_volume,
+                )
+                _ensure_success(f"stage-{idx}", result)
+
+            write_status(output_dir, "succeeded")
             return RunHandle(run_id=run_id, output_dir=output_dir, status="succeeded")
         except Exception as exc:
-            self._write_status(output_dir, "failed", {"error": str(exc)})
+            write_status(output_dir, "failed", {"error": str(exc)})
             return RunHandle(run_id=run_id, output_dir=output_dir, status="failed")
