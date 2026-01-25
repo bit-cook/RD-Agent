@@ -170,10 +170,13 @@ unified_hypothesis_gen:
     - Max `seq_len` each method can support at `batch_size=1`
     - Model's `max_position_embeddings` limit
 
-    **Method Selection based on seq_len needs:**
+    **Method Selection based on seq_len needs and dataset size:**
     1. Check which methods support your required seq_len
-    2. Among viable methods: **prefer `full` > `full_gc` > `lora` > `qlora`** for quality
-    3. `full` is not always viable - choose based on your actual seq_len requirements
+    2. **Consider dataset size** (critical for avoiding overfitting):
+       - **Small dataset (<5K samples)**: Prefer `lora` or `qlora` to prevent overfitting
+       - **Medium dataset (5K-10K samples)**: Balance quality vs overfitting risk - consider `lora` or `full_gc`
+       - **Large dataset (>10K samples)**: Among viable methods, prefer `full` > `full_gc` > `lora` > `qlora` for quality
+    3. `full` is NOT always optimal - choose based on BOTH seq_len constraints AND dataset size
 
     **Set cutoff_len:** `cutoff_len ≤ min(max_seq_len from table, max_position_embeddings)`
 
@@ -182,12 +185,21 @@ unified_hypothesis_gen:
     - Larger seq_len → must decrease batch_size (possibly to 1)
     - Use `gradient_accumulation_steps` to achieve effective batch size of 16-64
 
-    **Example Decision Flow:**
+    **Example Decision Flows:**
+    
+    **Scenario A: Large dataset (15K samples)**
     Given 4×48GB GPU, 7B model, need 16K seq_len for rich CoT:
     1. Check table: `full`=18K ✓, `full_gc`=52K ✓, `lora`=89K ✓
-    2. All methods viable → choose `full` (best quality)
+    2. Large dataset → all methods viable, choose `full` (best quality, low overfitting risk)
     3. Set `cutoff_len`=16384 (≤ 18K and ≤ max_position_embeddings)
     4. batch_size=1, gradient_accumulation=16 → effective batch=64
+    
+    **Scenario B: Small dataset (3K samples)**
+    Given same hardware and seq_len requirement:
+    1. Check table: `full`=18K ✓, `full_gc`=52K ✓, `lora`=89K ✓
+    2. Small dataset → choose `lora` despite `full` being viable (avoid overfitting)
+    3. Set `cutoff_len`=16384, use LoRA rank=64-128
+    4. batch_size=1, gradient_accumulation=8 → effective batch=32 (smaller for small dataset)
 
     ## 2.2 Available Resources
 
