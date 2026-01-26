@@ -12,25 +12,35 @@ from typing import Optional
 
 
 def now_id() -> str:
+    # 用法：生成时间戳字符串作为 run_id。
+    # 原因：确保每次运行目录与日志唯一。
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
 
 def read_text(path: Path) -> str:
+    # 用法：以 UTF-8 读取文本文件。
+    # 原因：统一编码，避免乱码。
     return path.read_text(encoding="utf-8")
 
 
 def write_text(path: Path, text: str) -> None:
+    # 用法：写入文本并自动创建父目录。
+    # 原因：保证日志/配置能落盘。
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
 
 
 def tail_text(text: str, max_chars: int) -> str:
+    # 用法：截取文本尾部指定长度。
+    # 原因：限制反馈长度，避免过长。
     if len(text) <= max_chars:
         return text
     return text[-max_chars:]
 
 
 def normalize_openai_base(url: str) -> str:
+    # 用法：规范 base_url 末尾为 /v1。
+    # 原因：兼容 OpenAI 兼容服务的路径要求。
     trimmed = url.rstrip("/")
     if not trimmed.endswith("/v1"):
         return f"{trimmed}/v1"
@@ -44,6 +54,8 @@ def parse_dotenv(path: Path) -> dict[str, str]:
     - Skips top-level triple-quoted blocks used as file headers
     - Supports KEY=VALUE with optional quotes
     """
+    # 用法：解析 .env 文件为键值字典。
+    # 原因：读取 API Key/模型配置用于运行。
     text = read_text(path)
     env: dict[str, str] = {}
 
@@ -88,10 +100,14 @@ def parse_dotenv(path: Path) -> dict[str, str]:
 
 
 def ensure_temp_workdir(prefix: str) -> Path:
+    # 用法：创建临时工作目录并返回路径。
+    # 原因：隔离运行目录，避免污染。
     return Path(tempfile.mkdtemp(prefix=prefix))
 
 
 def git_clone(repo_url: str, dest: Path, depth: int) -> None:
+    # 用法：克隆仓库到指定目录。
+    # 原因：自动准备可复现的代码环境。
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and any(dest.iterdir()):
         raise RuntimeError(f"Refusing to clone into non-empty dir: {dest}")
@@ -107,6 +123,8 @@ def run_streamed(
     log_path: Path,
     timeout_sec: Optional[int] = None,
 ) -> tuple[int, str]:
+    # 用法：运行命令并实时输出、写日志，支持超时控制。
+    # 原因：保留完整过程并防止卡死。
     log_path.parent.mkdir(parents=True, exist_ok=True)
     start = time.time()
 
