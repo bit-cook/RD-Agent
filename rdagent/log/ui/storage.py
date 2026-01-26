@@ -48,7 +48,7 @@ class WebStorage(Storage):
             resp = requests.post(f"{self.url}/receive", json=data, headers=headers, timeout=1)
             return f"{resp.status_code} {resp.text}"
         except (requests.ConnectionError, requests.Timeout) as e:
-            pass
+            print(f"Failed to connect to the web storage server at {self.url}: {e}")
 
     def truncate(self, time: datetime) -> None:
         self.msgs = [m for m in self.msgs if datetime.fromisoformat(m["msg"]["timestamp"]) <= time]
