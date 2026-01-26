@@ -12,6 +12,9 @@ from autorl_bench.utils.schema import Scenario
 
 
 def _extract_numeric(text: str, answer_regex: Optional[str]) -> Optional[float]:
+    # 说明: 从模型输出中尽可能稳健地提取数值答案。
+    # 原因: 不同 prompt/模型的答案格式不一致，需要多级回退解析。
+    # 可简化: 若统一要求 "####" 标记格式，可只保留第一段解析。
     if answer_regex:
         match = re.search(answer_regex, text)
         if match:
@@ -37,6 +40,9 @@ def _extract_numeric(text: str, answer_regex: Optional[str]) -> Optional[float]:
 
 
 def _load_gsm8k(data_path: str, split: str) -> List[Dict[str, Any]]:
+    # 说明: 兼容 HF 数据集与本地 jsonl 文件两种加载方式。
+    # 原因: 评测环境可能离线或需要从镜像内读取本地数据。
+    # 可简化: 若只支持一种来源，可移除分支逻辑。
     if data_path.startswith("hf://"):
         from datasets import load_dataset
 
@@ -62,6 +68,9 @@ def _build_fewshot_prompt(
     prefix: str,
     answer_regex: Optional[str],
 ) -> str:
+    # 说明: 拼接 few-shot 示例块，作为提示词前缀。
+    # 原因: few-shot 能显著影响 GSM8K 表现与稳定性。
+    # 可简化: 若只做 zero-shot，可直接返回 prefix。
     blocks: List[str] = []
     for item in examples:
         question = item.get("question", "")
@@ -78,6 +87,9 @@ def _call_model(
     temperature: float,
     max_tokens: int,
 ) -> str:
+    # 说明: 封装 LLM 调用，避免 run 里铺开 API 细节。
+    # 原因: 不同评测共享统一调用路径，便于替换后端。
+    # 可简化: 若仅支持单一后端，可直接在 run 中调用。
     from litellm import completion
 
     response = completion(
@@ -92,6 +104,9 @@ def _call_model(
 
 
 def _resolve_model_id(model_id: str, provider: Optional[str]) -> str:
+    # 说明: 兼容 OpenAI 风格的模型命名约定。
+    # 原因: litellm 需要显式 provider 前缀以路由后端。
+    # 可简化: 若调用方已经传入全限定模型名，可移除。
     if provider in ("openai", "openai_compat"):
         if "/" not in model_id:
             return f"openai/{model_id}"
@@ -99,12 +114,22 @@ def _resolve_model_id(model_id: str, provider: Optional[str]) -> str:
 
 
 class Gsm8kInspectAdapter(BenchmarkAdapter):
+    # 说明: GSM8K 基准适配器，负责数据加载、提示构造与评分。
+    # 原因: 将任务细节封装在 adapter 内，runner 只做调度。
+    # 可简化: 若不需要多 benchmark，可把逻辑直接写到 runner。
     name = "gsm8k"
 
     def default_image(self) -> str:
         return "autorl-bench/eval-gsm8k:0.1"
 
     def run(self, scenario: Scenario, output_dir: Path, stage: Optional[str] = None) -> ResultBundle:
+        # 说明: 主评测流程：读取参数 -> 加载数据 -> 调用模型 -> 计算准确率。
+        # 原因: 评测过程与训练解耦，便于在 Docker 内独立运行。
+        # 可简化: 若评测流程固定，可删掉参数驱动与分支。
+        #
+        # 说明: 从 scenario.params 读取评测参数与默认值。
+        # 原因: 允许通过 YAML 快速调整 split/limit/fewshot 等。
+        # 可简化: 若配置固定，可用常量代替 params。
         params = scenario.params or {}
         split = params.get("split", "test")
         limit = int(params.get("limit", 0)) if params.get("limit") else None
@@ -112,6 +137,9 @@ class Gsm8kInspectAdapter(BenchmarkAdapter):
         fewshot_seed = int(params.get("fewshot_seed", 42))
         answer_regex = params.get("answer_regex")
 
+        # 说明: 读取模型侧配置，统一处理 provider/base_url/key 等信息。
+        # 原因: LLM 后端与模型细节不应散落在评测逻辑里。
+        # 可简化: 若模型侧配置固定，可移除动态读取。
         model_cfg = scenario.model or {}
         temperature = getattr(model_cfg, "temperature", 0.0)
         max_tokens = getattr(model_cfg, "max_tokens", 1024)
@@ -120,10 +148,16 @@ class Gsm8kInspectAdapter(BenchmarkAdapter):
         provider = getattr(model_cfg, "provider", None)
         model_id = _resolve_model_id(scenario.model_id(), provider)
 
+        # 说明: 加载 GSM8K 数据并按需截断。
+        # 原因: 支持小样本调试与快速回归测试。
+        # 可简化: 若总是全量评测，可删除 limit 相关逻辑。
         records = _load_gsm8k(scenario.data_id(), split=split)
         if limit:
             records = records[:limit]
 
+        # 说明: 构造 prompt 与 few-shot 前缀。
+        # 原因: few-shot 能提升准确率，且通过参数可控。
+        # 可简化: 若永远 zero-shot，可删除 fewshot 分支。
         prompt_prefix = params.get(
             "prompt_prefix",
             "Solve this math problem step by step. Put your final answer after ####.",
@@ -139,6 +173,9 @@ class Gsm8kInspectAdapter(BenchmarkAdapter):
         correct = 0
         start = time.time()
 
+        # 说明: 逐题生成答案并用数值解析进行判分。
+        # 原因: GSM8K 标准答案是数值，数值比对更稳健。
+        # 可简化: 若模型输出格式严格统一，可只解析 "####" 行。
         for idx, item in enumerate(records):
             question = item.get("question", "")
             answer = item.get("answer", "")
