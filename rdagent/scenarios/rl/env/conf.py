@@ -76,10 +76,10 @@ def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
     conf = RLDockerConf()
     conf.running_timeout_period = timeout
     
-    # 根据 benchmark 设置镜像名和 Dockerfile
+    # 根据 benchmark 设置镜像名和 Dockerfile 目录
     conf.image = f"autorl-bench/{benchmark}:latest"
-    conf.dockerfile = f"{benchmark}/Dockerfile"
-    # 基类 DockerEnv.prepare() 会自动检测镜像是否存在并构建
+    conf.dockerfile_folder_path = RL_DOCKERFILE_DIR / benchmark
+    # 基类 DockerEnv.prepare() 会在 dockerfile_folder_path 下找 Dockerfile
     
     # 挂载目录
     conf.extra_volumes = {
