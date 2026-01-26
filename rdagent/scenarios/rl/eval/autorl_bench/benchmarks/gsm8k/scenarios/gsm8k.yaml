@@ -6,6 +6,13 @@ metric: accuracy
 benchmark: gsm8k
 docker_image: autorl-bench/eval-gsm8k:0.1
 
+# 数据集下载配置
+dataset:
+  repo_id: openai/gsm8k
+  subset: main
+  splits: [train, test]
+  format: jsonl
+
 model:
   provider: openai_compat
   base_url: http://host.docker.internal:8000/v1

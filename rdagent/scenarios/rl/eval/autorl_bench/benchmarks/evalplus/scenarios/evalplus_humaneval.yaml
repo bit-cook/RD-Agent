@@ -6,6 +6,12 @@ metric: pass@1
 benchmark: evalplus
 docker_image: autorl-bench/eval-evalplus:0.1
 
+# 数据集下载配置
+dataset:
+  repo_id: evalplus/humanevalplus
+  splits: [test]
+  format: jsonl
+
 model:
   provider: openai_compat
   base_url: http://host.docker.internal:8000/v1
