@@ -31,6 +31,8 @@ class RLDockerConf(DockerConf):
     mount_path: str = "/workspace"
     default_entry: str = "python main.py"
     running_timeout_period: int = 3600
+    enable_cache: bool = False
+    save_logs_to_file: bool = True
 
 
 def _ensure_data_exists(benchmark: str) -> None:

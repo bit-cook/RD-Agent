@@ -27,9 +27,9 @@ params:
   n_samples: 1
 
 stages:
-  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output --stage codegen"
+  - entry: "python /workspace/env_entry.py eval --scenario /scenario.yaml --output /workspace --stage codegen"
     network: host
-  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output --stage evaluate"
+  - entry: "python /workspace/env_entry.py eval --scenario /scenario.yaml --output /workspace --stage evaluate"
     network: none
     read_only: true
     cap_drop_all: true

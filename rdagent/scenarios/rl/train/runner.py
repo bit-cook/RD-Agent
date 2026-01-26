@@ -9,9 +9,8 @@ from rdagent.core.developer import Developer
 from rdagent.core.experiment import Experiment
 from rdagent.core.scenario import Scenario
 from rdagent.log import rdagent_logger as logger
-from rdagent.scenarios.rl.eval.benchmark import RLAutoRLEvaluator
-from rdagent.scenarios.rl.env.conf import get_rl_env, RL_WORKSPACE_DIR
-from rdagent.scenarios.rl.eval.core.utils import load_benchmark
+from rdagent.scenarios.rl.eval.runner import Evaluator
+from rdagent.scenarios.rl.env.conf import get_rl_env
 
 
 class RLPostTrainingRunner(Developer):
@@ -31,10 +30,6 @@ class RLPostTrainingRunner(Developer):
         3. 返回更新后的 experiment
         """
         workspace = exp.experiment_workspace
-        
-        # TODO: call  benchmark
-        # benchmark = load_benchmark(RL_RD_SETTING.benchmark)
-        # benchmark.run(workspace)
         
         if workspace is None:
             logger.warning("No workspace found in experiment")
@@ -73,7 +68,7 @@ class RLPostTrainingRunner(Developer):
         if benchmark and result.exit_code == 0:
             logger.info(f"=== Starting AutoRL-Bench Evaluation ({benchmark}) ===")
             try:
-                evaluator = RLAutoRLEvaluator(timeout=RL_RD_SETTING.benchmark_timeout)
+                evaluator = Evaluator(timeout=RL_RD_SETTING.benchmark_timeout)
                 bench_results = evaluator.run(benchmark)
                 exp.result["benchmark"] = bench_results
             except Exception as exc:

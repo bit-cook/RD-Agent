@@ -28,5 +28,5 @@ params:
   answer_regex: "(?i)####\\s*([-+]?\\d[\\d,]*\\.?\\d*)"
 
 stages:
-  - entry: "python /app/env_entry.py eval --scenario /scenario.yaml --output /output"
+  - entry: "python /workspace/env_entry.py eval --scenario /scenario.yaml --output /workspace"
     network: host
