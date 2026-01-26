@@ -20,7 +20,6 @@ class Scenario(BaseModel):
     """
     Benchmark Config
     """
-    # TODO: please use existing settings like `class RLDockerConf(DockerConf):`
     name: Optional[str] = None
     model_path: str
     data_path: str
@@ -46,6 +45,7 @@ class Scenario(BaseModel):
 
     def data_id(self) -> str:
         return self.data_path
+
 
 
 @dataclass

@@ -13,7 +13,8 @@ from typing import Any, Mapping
 
 import yaml
 
-from rdagent.utils.env import DockerConf, DockerEnv
+from rdagent.utils.env import DockerEnv
+from rdagent.scenarios.rl.env.conf import RLDockerConf
 from autorl_bench.utils.schema import apply_overrides, find_scenario
 from autorl_bench.utils.scenario_paths import scenario_dirs
 from autorl_bench.utils.mounts import resolve_local_data_mount
@@ -92,14 +93,14 @@ class Evaluator:
                 running_extra_volume.update(extra_volumes)
 
             for idx, stage in enumerate(stages, start=1):
-                conf = DockerConf(
-                    image=image,
-                    mount_path="/output",
-                    default_entry=stage["entry"],
-                    read_only=stage.get("read_only", False),
-                    cap_drop_all=stage.get("cap_drop_all", False),
-                    pids_limit=stage.get("pids_limit"),
-                )
+                conf = RLDockerConf()
+                conf.build_from_dockerfile = False
+                conf.image = image
+                conf.mount_path = "/output"
+                conf.default_entry = stage["entry"]
+                conf.read_only = stage.get("read_only", False)
+                conf.cap_drop_all = stage.get("cap_drop_all", False)
+                conf.pids_limit = stage.get("pids_limit")
                 conf.enable_cache = False
                 conf.save_logs_to_file = True
                 if timeout is not None:

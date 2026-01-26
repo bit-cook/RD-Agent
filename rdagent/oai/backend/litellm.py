@@ -137,7 +137,8 @@ class LiteLLMAPIBackend(APIBackend):
 
         if response_format and not supports_response_schema(
             model=LITELLM_SETTINGS.chat_model,
-            custom_llm_provider=None,  # NOTE: why do we add this?
+            # LiteLLM (1.43+) requires this arg; None means auto-infer provider from model.
+            custom_llm_provider=None,
         ):
             # Deepseek will enter this branch
             logger.warning(
