@@ -82,6 +82,8 @@ class RDAgentLog(SingletonBaseClass):
             self._tag_ctx.reset(token)
 
     def set_storages_path(self, path: str | Path) -> None:
+        if isinstance(path, str):
+            path = Path(path)
         for storage in [self.storage] + self.other_storages:
             if hasattr(storage, "path"):
                 storage.path = path

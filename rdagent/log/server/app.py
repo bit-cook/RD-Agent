@@ -1,9 +1,12 @@
 import os
 import random
 import signal
-import subprocess
+import logging
+import traceback
 from collections import defaultdict
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
+from multiprocessing import Process
 from pathlib import Path
 
 import randomname
@@ -20,7 +23,106 @@ from rdagent.log.utils import is_valid_session
 app = Flask(__name__, static_folder=UI_SETTING.static_path)
 CORS(app)
 
-rdagent_processes = defaultdict()
+_YELLOW = "\033[33m"
+_RESET = "\033[0m"
+
+
+class _YellowWarningFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        if record.levelno == logging.WARNING:
+            record.levelname = f"{_YELLOW}{record.levelname}{_RESET}"
+        return super().format(record)
+
+
+def _configure_app_logger() -> None:
+    formatter = _YellowWarningFormatter(
+        fmt="[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    for handler in app.logger.handlers:
+        handler.setFormatter(formatter)
+
+
+_configure_app_logger()
+
+class RDAgentTask:
+    def __init__(
+        self,
+        target_name: str,
+        kwargs: dict,
+        stdout_path: str,
+        log_trace_path: str,
+        scenario: str,
+        trace_name: str,
+        create_process: bool = True,
+    ) -> None:
+        self.target_name = target_name
+        self.kwargs = kwargs
+        self.stdout_path = stdout_path
+        self.log_trace_path = log_trace_path
+        self.scenario = scenario
+        self.trace_name = trace_name
+        self.process: Process | None = None
+        if create_process:
+            self.process = Process(
+                target=self._run,
+                name=f"rdagent:{self.scenario}:{self.trace_name}",
+            )
+        self.messages: list[dict] = []
+        self.pointers: defaultdict[str, int] = defaultdict(int)
+
+    def start(self) -> None:
+        if self.process is not None:
+            self.process.start()
+
+    def is_alive(self) -> bool:
+        return self.process is not None and self.process.is_alive()
+
+    def stop(self) -> None:
+        if self.process is not None and self.process.is_alive():
+            self.process.terminate()
+            self.process.join()
+
+    def _run(self) -> None:
+        from rdagent.log import rdagent_logger
+        rdagent_logger.set_storages_path(self.log_trace_path)
+        Path(self.stdout_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(self.stdout_path, "w") as log_file:
+            with redirect_stdout(log_file), redirect_stderr(log_file):
+                try:
+                    if self.target_name == "data_science":
+                        from rdagent.app.data_science.loop import main as data_science
+
+                        data_science(**self.kwargs)
+                    elif self.target_name == "general_model":
+                        from rdagent.app.general_model.general_model import (
+                            extract_models_and_implement as general_model,
+                        )
+
+                        general_model(**self.kwargs)
+                    elif self.target_name == "fin_factor":
+                        from rdagent.app.qlib_rd_loop.factor import main as fin_factor
+
+                        fin_factor(**self.kwargs)
+                    elif self.target_name == "fin_factor_report":
+                        from rdagent.app.qlib_rd_loop.factor_from_report import main as fin_factor_report
+
+                        fin_factor_report(**self.kwargs)
+                    elif self.target_name == "fin_model":
+                        from rdagent.app.qlib_rd_loop.model import main as fin_model
+
+                        fin_model(**self.kwargs)
+                    elif self.target_name == "fin_quant":
+                        from rdagent.app.qlib_rd_loop.quant import main as fin_quant
+
+                        fin_quant(**self.kwargs)
+                    else:
+                        raise ValueError(f"Unknown target: {self.target_name}")
+                except Exception:
+                    traceback.print_exc()
+
+
+rdagent_processes: dict[str, RDAgentTask] = {}
 server_port = 19899
 log_folder_path = Path(UI_SETTING.trace_folder).absolute()
 
@@ -30,29 +132,42 @@ def favicon():
     return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/vnd.microsoft.icon")
 
 
-msgs_for_frontend = defaultdict(list)
-pointers = defaultdict(lambda: defaultdict(int))  # pointers[trace_id][user_ip]
+def _get_or_create_task(trace_id: str) -> RDAgentTask:
+    task = rdagent_processes.get(trace_id)
+    if task is None:
+        task = RDAgentTask(
+            target_name="",
+            kwargs={},
+            stdout_path="",
+            log_trace_path=trace_id,
+            scenario="",
+            trace_name="",
+            create_process=False,
+        )
+        rdagent_processes[trace_id] = task
+    return task
 
 
 def read_trace(log_path: Path, id: str = "") -> None:
     fs = FileStorage(log_path)
     ws = WebStorage(port=1, path=log_path)
-    msgs_for_frontend[id] = []
+    task = _get_or_create_task(id)
+    task.messages = []
     last_timestamp = None
     for msg in fs.iter_msg():
         data = ws._obj_to_json(obj=msg.content, tag=msg.tag, id=id, timestamp=msg.timestamp.isoformat())
         if data:
             if isinstance(data, list):
                 for d in data:
-                    msgs_for_frontend[id].append(d["msg"])
+                    task.messages.append(d["msg"])
                     last_timestamp = msg.timestamp
             else:
-                msgs_for_frontend[id].append(data["msg"])
+                task.messages.append(data["msg"])
                 last_timestamp = msg.timestamp
 
     now = datetime.now(timezone.utc)
     if last_timestamp and (now - last_timestamp).total_seconds() > 1800:
-        msgs_for_frontend[id].append({"tag": "END", "timestamp": now.isoformat(), "content": {}})
+        task.messages.append({"tag": "END", "timestamp": now.isoformat(), "content": {}})
 
 
 # load all traces from the log folder
@@ -63,7 +178,6 @@ for p in log_folder_path.glob("*/*/"):
 
 @app.route("/trace", methods=["POST"])
 def update_trace():
-    global pointers, msgs_for_frontend
     data = request.get_json()
     trace_id = data.get("id")
     return_all = data.get("all")
@@ -75,19 +189,28 @@ def update_trace():
         return jsonify({"error": "Trace ID is required"}), 400
     trace_id = str(log_folder_path / trace_id)
 
+    task = _get_or_create_task(trace_id)
+
+    if task.process is not None and not task.is_alive():
+        if not task.messages or task.messages[-1].get("tag") != "END":
+            task.messages.append(
+                {"tag": "END", "timestamp": datetime.now(timezone.utc).isoformat(), "content": {}}
+            )
+            app.logger.warning(f"Process for {trace_id} has ended.")
+
     user_ip = request.remote_addr
 
     if reset:
-        pointers[trace_id][user_ip] = 0
+        task.pointers[user_ip] = 0
 
-    start_pointer = pointers[trace_id][user_ip]
+    start_pointer = task.pointers[user_ip]
     end_pointer = start_pointer + msg_num
-    if end_pointer > len(msgs_for_frontend[trace_id]) or return_all:
-        end_pointer = len(msgs_for_frontend[trace_id])
+    if end_pointer > len(task.messages) or return_all:
+        end_pointer = len(task.messages)
 
-    returned_msgs = msgs_for_frontend[trace_id][start_pointer:end_pointer]
+    returned_msgs = task.messages[start_pointer:end_pointer]
 
-    pointers[trace_id][user_ip] = end_pointer
+    task.pointers[user_ip] = end_pointer
     if returned_msgs:
         app.logger.info([msg["tag"] for msg in returned_msgs])
     return jsonify(returned_msgs), 200
@@ -132,42 +255,48 @@ def upload_file():
             else:
                 return jsonify({"error": "Invalid file path"}), 400
 
+    target_name = None
+    kwargs = {}
+    loop_n_val = int(loop_n) if loop_n else None
+    all_duration_val = f"{all_duration}h" if all_duration else None
+
     if scenario == "Finance Data Building":
-        cmds = ["rdagent", "fin_factor"]
-    if scenario == "Finance Data Building (Reports)":
-        cmds = ["rdagent", "fin_factor_report", "--report_folder", str(trace_files_path)]
+        target_name = "fin_factor"
+        kwargs = {"loop_n": loop_n_val, "all_duration": all_duration_val}
     if scenario == "Finance Model Implementation":
-        cmds = ["rdagent", "fin_model"]
+        target_name = "fin_model"
+        kwargs = {"loop_n": loop_n_val, "all_duration": all_duration_val}
+    if scenario == "Finance Whole Pipeline":
+        target_name = "fin_quant"
+        kwargs = {"loop_n": loop_n_val, "all_duration": all_duration_val}
+    if scenario == "Finance Data Building (Reports)":
+        target_name = "fin_factor_report"
+        kwargs = {"report_folder": str(trace_files_path), "all_duration": all_duration_val}
     if scenario == "General Model Implementation":
         if len(files) == 0:  # files is one link
             rfp = request.form.get("files")[0]
         else:  # one file is uploaded
             rfp = str(trace_files_path / files[0].filename)
-        cmds = ["rdagent", "general_model", "--report_file_path", rfp]
-    if scenario == "Finance Whole Pipeline":
-        cmds = ["rdagent", "fin_quant"]
+        target_name = "general_model"
+        kwargs = {"report_file_path": rfp}
     if scenario == "Data Science":
-        cmds = ["rdagent", "data_science", "--competition", competition]
+        target_name = "data_science"
+        kwargs = {"competition": competition, "loop_n": loop_n_val, "timeout": all_duration_val}
 
-    # time control parameters
-    if scenario != "Finance Data Building (Reports)":
-        if loop_n:
-            cmds += ["--loop-n", loop_n]
-    if all_duration:
-        cmds += ["--all-duration", f"{all_duration}h"]
+    if target_name is None:
+        return jsonify({"error": "Unknown scenario"}), 400
 
-    app.logger.info(f"Started process for {log_trace_path} with parameters: {cmds}")
-    with stdout_path.open("w") as log_file:
-        rdagent_processes[str(log_trace_path)] = subprocess.Popen(
-            cmds,
-            stdout=log_file,
-            stderr=log_file,
-            env={
-                **os.environ,
-                "LOG_TRACE_PATH": str(log_trace_path),
-                "LOG_UI_SERVER_PORT": str(server_port),
-            },
-        )
+    app.logger.info(f"Started process for {log_trace_path} with target: {target_name}, kwargs: {kwargs}")
+    task = RDAgentTask(
+        target_name=target_name,
+        kwargs=kwargs,
+        stdout_path=str(stdout_path),
+        log_trace_path=str(log_trace_path),
+        scenario=scenario,
+        trace_name=trace_name,
+    )
+    task.start()
+    rdagent_processes[str(log_trace_path)] = task
     return (
         jsonify(
             {
@@ -182,7 +311,6 @@ def upload_file():
 def receive_msgs():
     try:
         data = request.get_json()
-        # app.logger.info(data["msg"]["tag"])
         if not data:
             return jsonify({"error": "No JSON data received"}), 400
     except Exception as e:
@@ -190,16 +318,18 @@ def receive_msgs():
 
     if isinstance(data, list):
         for d in data:
-            msgs_for_frontend[d["id"]].append(d["msg"])
+            task = _get_or_create_task(d["id"])
+            task.messages.append(d["msg"])
     else:
-        msgs_for_frontend[data["id"]].append(data["msg"])
+        task = _get_or_create_task(data["id"])
+        task.messages.append(data["msg"])
 
     return jsonify({"status": "success"}), 200
 
 
 @app.route("/control", methods=["POST"])
 def control_process():
-    global rdagent_processes, msgs_for_frontend
+    global rdagent_processes
     data = request.get_json()
     app.logger.info(data)
     if not data or "id" not in data or "action" not in data:
@@ -211,24 +341,24 @@ def control_process():
     if id not in rdagent_processes or rdagent_processes[id] is None:
         return jsonify({"error": "No running process for given id"}), 400
 
-    process = rdagent_processes[id]
+    task = rdagent_processes[id]
 
-    if process.poll() is not None:
-        msgs_for_frontend[id].append({"tag": "END", "timestamp": datetime.now(timezone.utc).isoformat(), "content": {}})
+    if task.process is None:
+        return jsonify({"error": "No running process for given id"}), 400
+
+    if not task.is_alive():
+        task.messages.append({"tag": "END", "timestamp": datetime.now(timezone.utc).isoformat(), "content": {}})
         return jsonify({"error": "Process has already terminated"}), 400
 
     try:
         if action == "pause":
-            os.kill(process.pid, signal.SIGSTOP)
-            return jsonify({"status": "paused"}), 200
+            return jsonify({"error": "pause is not supported for multiprocessing.Process"}), 400
         elif action == "resume":
-            os.kill(process.pid, signal.SIGCONT)
-            return jsonify({"status": "resumed"}), 200
+            return jsonify({"error": "resume is not supported for multiprocessing.Process"}), 400
         elif action == "stop":
-            process.terminate()
-            process.wait()
+            task.stop()
             del rdagent_processes[id]
-            msgs_for_frontend[id].append(
+            task.messages.append(
                 {"tag": "END", "timestamp": datetime.now(timezone.utc).isoformat(), "content": {}}
             )
             return jsonify({"status": "stopped"}), 200
@@ -241,9 +371,8 @@ def control_process():
 @app.route("/test", methods=["GET"])
 def test():
     # return 'Hello, World!'
-    global msgs_for_frontend, pointers
-    msgs = {k: [i["tag"] for i in v] for k, v in msgs_for_frontend.items()}
-    pointers = pointers
+    msgs = {k: [i["tag"] for i in task.messages] for k, task in rdagent_processes.items()}
+    pointers = {k: dict(task.pointers) for k, task in rdagent_processes.items()}
     return jsonify({"msgs": msgs, "pointers": pointers}), 200
 
 
@@ -260,8 +389,6 @@ def server_static_files(fn):
 
 
 def main(port: int = 19899):
-    global server_port
-    server_port = port
     app.run(debug=False, host="0.0.0.0", port=port)
 
 

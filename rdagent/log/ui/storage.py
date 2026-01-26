@@ -36,7 +36,7 @@ class WebStorage(Storage):
             obj.save(f"{UI_SETTING.static_path}/{timestamp.isoformat()}.jpg")
 
         try:
-            data = self._obj_to_json(obj=obj, tag=tag, id=self.path, timestamp=timestamp.isoformat())
+            data = self._obj_to_json(obj=obj, tag=tag, id=str(self.path), timestamp=timestamp.isoformat())
             if not data:
                 return "Normal log, skipped"
             if isinstance(data, list):
