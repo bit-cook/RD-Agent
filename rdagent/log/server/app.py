@@ -296,6 +296,7 @@ def upload_file():
         trace_name=trace_name,
     )
     task.start()
+    app.logger.warning(f"Task {log_trace_path} started.")
     rdagent_processes[str(log_trace_path)] = task
     return (
         jsonify(

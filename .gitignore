@@ -183,3 +183,6 @@ static/
 .cursor/
 .claude/
 AGENTS.md
+
+# api server logs
+traces/
