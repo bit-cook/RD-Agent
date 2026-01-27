@@ -27,8 +27,7 @@
 # 编码原则
 实现新代码时不要捕获未知异常。我倾向于让错误传播，以便及时发现和修复。
 
-# 测试原则
-log 都输出在这并且同一功能复用同一log命名：program/RD-Agent/rdagent/scenarios/rl/eval/autorl_bench/log
+
 
 # 潜在重构待办
 ## 框架

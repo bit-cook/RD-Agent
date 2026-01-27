@@ -3,19 +3,16 @@ RL Training Environment Configuration
 
 """
 
-import os
 from pathlib import Path
 
+from rdagent.app.rl.conf import RL_RD_SETTING
 from rdagent.utils.env import DockerEnv, DockerConf
 from rdagent.log import rdagent_logger as logger
 
 
-# RL 资源路径
-RL_ASSETS_DIR = Path(__file__).parent.parent / "eval" / "autorl_bench" / "assets"
-_DEFAULT_MODELS_DIR = RL_ASSETS_DIR / "models"
-RL_MODELS_DIR = Path(os.environ.get("RL_MODELS_DIR", str(_DEFAULT_MODELS_DIR)))
-_DEFAULT_DATA_DIR = RL_ASSETS_DIR / "data"
-RL_DATA_DIR = Path(os.environ.get("RL_DATA_DIR", str(_DEFAULT_DATA_DIR)))
+# RL 资源路径（统一使用 RL_RD_SETTING.file_path）
+RL_MODELS_DIR = RL_RD_SETTING.file_path / "models"
+RL_DATA_DIR = RL_RD_SETTING.file_path / "datasets"
 RL_WORKSPACE_DIR = Path(__file__).parent.parent / "eval" / "autorl_bench" / "example_workspace"
 
 # Dockerfile 所在目录
@@ -52,6 +49,34 @@ def _ensure_data_exists(benchmark: str) -> None:
         logger.warning("You may need to manually download the dataset")
 
 
+def _ensure_model_exists(model_name: str) -> None:
+    """检测模型目录，不存在则自动下载（保留完整 repo_id 目录结构）
+    
+    Args:
+        model_name: 模型名称，如 "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+        
+    目录结构:
+        models/
+        └── Qwen/
+            └── Qwen2.5-Coder-0.5B-Instruct/
+    """
+    # 保留完整的 repo_id 目录结构
+    model_dir = RL_MODELS_DIR / model_name
+    
+    if model_dir.exists() and any(model_dir.iterdir()):
+        logger.info(f"Model '{model_name}' exists at {model_dir}")
+        return
+    
+    logger.info(f"Model '{model_name}' not found, downloading...")
+    try:
+        from rdagent.scenarios.rl.eval.autorl_bench.utils.download import download_model
+        download_model(model_name, str(RL_MODELS_DIR))
+        logger.info(f"Model downloaded to {model_dir}")
+    except Exception as e:
+        logger.warning(f"Failed to download model '{model_name}': {e}")
+        logger.warning("You may need to manually download the model")
+
+
 def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
     """
     获取 RL 训练环境
@@ -62,7 +87,7 @@ def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
     - benchmark="base" → autorl-bench/base:latest
     
     如果镜像已存在，跳过构建；否则自动构建。
-    如果数据不存在，自动下载。
+    如果数据/模型不存在，自动下载。
     
     Args:
         benchmark: benchmark 名称，决定使用哪个 Docker 镜像
@@ -74,6 +99,11 @@ def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
     # 检测并下载数据
     if benchmark != "base":
         _ensure_data_exists(benchmark)
+    
+    # 检测并下载模型（从全局配置读取 base_model）
+    base_model = RL_RD_SETTING.base_model
+    if base_model:
+        _ensure_model_exists(base_model)
     
     conf = RLDockerConf()
     conf.running_timeout_period = timeout
