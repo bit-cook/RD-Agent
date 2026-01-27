@@ -39,6 +39,12 @@ class RLPostTrainingScen(Scenario):
         logger.info(f"  Base model: {self.base_model}")
         logger.info(f"  Benchmark: {self.benchmark}")
 
+        # 首先确保数据和模型存在（不存在则下载）
+        from rdagent.scenarios.rl.env.conf import _ensure_data_exists, _ensure_model_exists
+        logger.info("Checking and downloading resources...")
+        _ensure_data_exists(self.benchmark)
+        _ensure_model_exists(self.base_model)
+
         # 获取 GPU 信息
         try:
             env = get_rl_benchmark_env()
@@ -80,11 +86,7 @@ class RLPostTrainingScen(Scenario):
         ws = RLWorkspace()
         ws.prepare()
 
-        # 确保模型存在（不存在则下载）
-        from rdagent.scenarios.rl.env.conf import _ensure_model_exists
-        _ensure_model_exists(model_name)
-        
-        # 复制模型到 workspace 内
+        # 复制模型到 workspace 内（模型已在 __init__ 中下载）
         src_model_path = RL_RD_SETTING.file_path / "models" / model_name
         dst_model_path = ws.workspace_path / "models" / model_name
 
