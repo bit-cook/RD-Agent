@@ -24,6 +24,12 @@
   - Ideal UI: if we use same framework, we expect a unified UI for all scenarios.
     - BUT: Current UI may not be general enough for all scenarios.
 
+- Define benchmark interface:
+  - The users(e.g. agent) only interacts with the benchmark's public interface.
+  - interaction scenarios:
+    - CODE in R&D-Agent interaction with the benchmark
+    - ...
+
 # 编码原则
 实现新代码时不要捕获未知异常。我倾向于让错误传播，以便及时发现和修复。
 

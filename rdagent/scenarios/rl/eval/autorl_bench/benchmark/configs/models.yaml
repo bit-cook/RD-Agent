@@ -1,3 +1,4 @@
+# TODO: try to reuse previous code and provide an unified interface.
 # Model Inference Parameters Configuration
 # Used by benchmark.py to determine inference settings for different models
 

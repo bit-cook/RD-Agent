@@ -71,6 +71,8 @@ class RLPostTrainingRunner(Developer):
         
         if benchmark and result.exit_code == 0:
             logger.info(f"=== Starting Benchmark Evaluation ({benchmark}) ===")
+            # TODO: we should call the unified function.
+            # e.g. benchmark.eval(workspace, ...)
             from rdagent.scenarios.rl.eval.autorl_bench.benchmark import run_benchmark
             
             workspace_path = Path(workspace.workspace_path)
