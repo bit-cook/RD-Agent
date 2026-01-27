@@ -64,32 +64,22 @@ class RLPostTrainingRunner(Developer):
             "running_time": result.running_time,
         }
 
-        # 评测训练后模型（使用 OpenCompass）
-        benchmark = RL_RD_SETTING.benchmark
-        if not benchmark and exp.sub_tasks:
-            benchmark = getattr(exp.sub_tasks[0], "benchmark", "")
+        # 评测训练后模型（使用统一接口）
+        benchmark_name = RL_RD_SETTING.benchmark
+        if not benchmark_name and exp.sub_tasks:
+            benchmark_name = getattr(exp.sub_tasks[0], "benchmark", "")
         
-        if benchmark and result.exit_code == 0:
-            logger.info(f"=== Starting Benchmark Evaluation ({benchmark}) ===")
-            # TODO: we should call the unified function.
-            # e.g. benchmark.eval(workspace, ...)
-            from rdagent.scenarios.rl.eval.autorl_bench.benchmark import run_benchmark
+        if benchmark_name and result.exit_code == 0:
+            logger.info(f"=== Starting Benchmark Evaluation ({benchmark_name}) ===")
             
-            workspace_path = Path(workspace.workspace_path)
-            model_path = workspace_path / "output"  # 训练后模型在 workspace/output
+            # 使用统一的 benchmark 接口
+            from rdagent.scenarios.rl.eval.core import load_benchmark
             
-            if not model_path.exists():
-                raise FileNotFoundError(f"Model output not found at {model_path}")
+            benchmark = load_benchmark(benchmark_name)
+            bench_results = benchmark.run(workspace)
             
-            bench_results = run_benchmark(
-                workspace_path=str(workspace_path),
-                model_path=str(model_path),
-                model_name=RL_RD_SETTING.base_model,
-                benchmark_name=benchmark,
-                gpu_count=getattr(self.scen, "gpu_count", 1),
-            )
             exp.result["benchmark"] = bench_results
-        elif benchmark:
+        elif benchmark_name:
             logger.info("Skip benchmark evaluation due to training failure.")
         
         return exp

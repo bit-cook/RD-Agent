@@ -19,13 +19,6 @@ Usage 2 - 传参数覆盖:
 print("[DEBUG] Script starting...", flush=True)
 
 import argparse
-import sys
-from pathlib import Path
-
-# 添加项目根目录到 path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-print(f"[DEBUG] PROJECT_ROOT: {PROJECT_ROOT}", flush=True)
 
 from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.rl.env.conf import get_rl_env, RL_MODELS_DIR, RL_DATA_DIR

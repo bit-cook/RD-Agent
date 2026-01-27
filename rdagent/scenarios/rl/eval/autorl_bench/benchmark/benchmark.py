@@ -22,8 +22,9 @@ from rdagent.utils.agent.tpl import T
 
 
 def get_model_inference_config(base_model_name: str, gpu_count: int) -> dict:
-    """加载模型推理配置"""
-    config_path = Path(__file__).parent / "configs" / "models.yaml"
+    """加载模型推理配置（使用共享配置）"""
+    from rdagent.components.benchmark import BENCHMARK_CONFIGS_DIR
+    config_path = BENCHMARK_CONFIGS_DIR / "models.yaml"
     config_data = yaml.safe_load(open(config_path, "r"))
 
     default_config = config_data.get("default", {})
@@ -145,7 +146,7 @@ def run_benchmark(
         **inference_config,
     }
 
-    config_content = T("rdagent.scenarios.rl.eval.autorl_bench.benchmark.configs.opencompass_template:template").r(**template_vars)
+    config_content = T("rdagent.components.benchmark.configs.opencompass_template:template").r(**template_vars)
     (workspace_path / "config.py").write_text(config_content)
 
     # 环境变量
