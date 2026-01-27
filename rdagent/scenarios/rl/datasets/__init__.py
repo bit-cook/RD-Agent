@@ -76,16 +76,20 @@ def _remove_test_files(out_dir: str) -> None:
 
 # Dataset registry: name -> DatasetConfig
 # 新增 benchmark 只需在这里添加一行
+# 注意：需要防止数据泄露的数据集要添加 post_download_fn=_remove_test_files
 DATASETS: dict[str, DatasetConfig] = {
     "gsm8k": DatasetConfig(
         repo_id="openai/gsm8k",
         subset="main",
+        post_download_fn=_remove_test_files,  # 删除 test.jsonl 防止数据泄露
     ),
     "humaneval": DatasetConfig(
         repo_id="openai/openai_humaneval",
+        post_download_fn=_remove_test_files,  # 删除 test.jsonl 防止数据泄露
     ),
     "math": DatasetConfig(
         repo_id="lighteval/MATH",
+        post_download_fn=_remove_test_files,  # 删除 test.jsonl 防止数据泄露
     ),
 }
 
