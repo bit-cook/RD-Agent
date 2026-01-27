@@ -60,6 +60,8 @@ def main(
 
     logger.info(f"Starting RL post-training: model={RL_RD_SETTING.base_model}, benchmark={RL_RD_SETTING.benchmark}")
 
+    # RDLoop 会自动根据 RL_RD_SETTING.scen 创建 Scenario
+    # Scenario.__init__() 中会自动运行 baseline 评测
     loop = RLPostTrainingRDLoop(RL_RD_SETTING)
     asyncio.run(loop.run(step_n=step_n, loop_n=loop_n, all_duration=timeout))
 

@@ -31,6 +31,36 @@ class DatasetConfig:
     post_download_fn: Optional[Callable[[str], None]] = field(default=None)
 
 
+def _download_hf_dataset(
+    repo_id: str,
+    out_dir: Path,
+    subset: Optional[str] = None,
+) -> None:
+    """Download HuggingFace dataset and convert to jsonl format.
+    
+    Args:
+        repo_id: HuggingFace dataset repository ID
+        out_dir: Output directory
+        subset: Dataset subset/config name
+    """
+    from datasets import load_dataset
+    
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Downloading {repo_id} from HuggingFace...")
+    dataset = load_dataset(repo_id, subset) if subset else load_dataset(repo_id)
+    
+    # Save each split to jsonl
+    for split_name, split_data in dataset.items():
+        output_file = out_dir / f"{split_name}.jsonl"
+        logger.info(f"Saving {split_name} split ({len(split_data)} samples) to {output_file}")
+        with open(output_file, "w", encoding="utf-8") as f:
+            for item in split_data:
+                f.write(json.dumps(dict(item), ensure_ascii=False) + "\n")
+    
+    logger.info(f"Dataset saved to {out_dir}")
+
+
 def _remove_test_files(out_dir: str) -> None:
     """Remove test/validation files to prevent data leakage."""
     out_path = Path(out_dir)
@@ -44,74 +74,8 @@ def _remove_test_files(out_dir: str) -> None:
                 shutil.rmtree(f)
 
 
-def _convert_to_jsonl(out_dir: str) -> None:
-    """Convert HuggingFace dataset to train.jsonl and test.jsonl format."""
-    from datasets import load_dataset
-    
-    out_path = Path(out_dir)
-    
-    # Check if already converted
-    if (out_path / "train.jsonl").exists():
-        return
-    
-    # Load from the downloaded cache
-    # This assumes the dataset was downloaded via load_dataset
-    pass  # Will be handled differently
-
-
-def _download_gsm8k(out_dir: str) -> None:
-    """Download GSM8K and convert to jsonl format.
-    
-    Note: Only saves train split to prevent data leakage.
-    Test split is loaded separately during evaluation from HuggingFace.
-    """
-    from datasets import load_dataset
-    
-    out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
-    
-    logger.info("Downloading GSM8K dataset from HuggingFace...")
-    dataset = load_dataset("openai/gsm8k", "main")
-    
-    # Save train only (prevent data leakage - test is loaded during evaluation)
-    train_file = out_path / "train.jsonl"
-    logger.info(f"Saving train split ({len(dataset['train'])} samples) to {train_file}")
-    with open(train_file, "w", encoding="utf-8") as f:
-        for item in dataset["train"]:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
-    
-    # NOTE: test.jsonl is NOT saved here to prevent data leakage
-    # Evaluation uses benchmarks/gsm8k/adapter.py which loads test from HuggingFace
-    
-    logger.info(f"GSM8K train data saved to {out_path} (test excluded to prevent leakage)")
-
-
-def _download_humaneval(out_dir: str) -> None:
-    """Download HumanEval dataset.
-    
-    Note: HumanEval only has test split, saved as train.jsonl for agent to use.
-    For code generation tasks, agent trains on examples and evaluation uses separate logic.
-    """
-    from datasets import load_dataset
-    
-    out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
-    
-    logger.info("Downloading HumanEval dataset from HuggingFace...")
-    dataset = load_dataset("openai/openai_humaneval")
-    
-    # HumanEval only has test split - save as train.jsonl for agent training
-    # Evaluation will use evalplus or other benchmark tools
-    train_file = out_path / "train.jsonl"
-    logger.info(f"Saving HumanEval ({len(dataset['test'])} samples) to {train_file}")
-    with open(train_file, "w", encoding="utf-8") as f:
-        for item in dataset["test"]:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
-    
-    logger.info(f"HumanEval data saved to {out_path}")
-
-
 # Dataset registry: name -> DatasetConfig
+# 新增 benchmark 只需在这里添加一行
 DATASETS: dict[str, DatasetConfig] = {
     "gsm8k": DatasetConfig(
         repo_id="openai/gsm8k",
@@ -120,12 +84,9 @@ DATASETS: dict[str, DatasetConfig] = {
     "humaneval": DatasetConfig(
         repo_id="openai/openai_humaneval",
     ),
-}
-
-# Custom download functions for datasets that need special handling
-_DOWNLOAD_FNS: dict[str, Callable[[str], None]] = {
-    "gsm8k": _download_gsm8k,
-    "humaneval": _download_humaneval,
+    "math": DatasetConfig(
+        repo_id="lighteval/MATH",
+    ),
 }
 
 
@@ -142,25 +103,27 @@ def prepare(name: str, force: bool = False) -> str:
     if name not in DATASETS:
         raise ValueError(f"Unknown dataset: {name}. Available: {list(DATASETS.keys())}")
 
+    config = DATASETS[name]
     out_dir = RL_DATA_DIR / name
 
     # Skip if already exists and not forcing
-    if not force and out_dir.exists() and (out_dir / "train.jsonl").exists():
+    if not force and out_dir.exists() and any(out_dir.glob("*.jsonl")):
         logger.info(f"Dataset '{name}' already exists at {out_dir}")
-        # Still remove test files to ensure no data leakage
-        _remove_test_files(str(out_dir))
         return str(out_dir)
 
-    # Use custom download function if available
-    if name in _DOWNLOAD_FNS:
-        if force and out_dir.exists():
-            shutil.rmtree(out_dir)
-        _DOWNLOAD_FNS[name](str(out_dir))
-    else:
-        raise NotImplementedError(f"No download function for dataset: {name}")
+    # Download
+    if force and out_dir.exists():
+        shutil.rmtree(out_dir)
+    
+    _download_hf_dataset(
+        repo_id=config.repo_id,
+        out_dir=out_dir,
+        subset=config.subset,
+    )
 
-    # Remove any test files to prevent data leakage
-    _remove_test_files(str(out_dir))
+    # Run post-download processing if defined
+    if config.post_download_fn:
+        config.post_download_fn(str(out_dir))
 
     return str(out_dir)
 
@@ -186,4 +149,3 @@ if __name__ == "__main__":
         print(f"Dataset prepared at: {path}")
     else:
         print(f"Available datasets: {list(DATASETS.keys())}")
-

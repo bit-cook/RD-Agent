@@ -33,7 +33,10 @@ class RLDockerConf(DockerConf):
 
 
 def _ensure_data_exists(benchmark: str) -> None:
-    """检测数据目录，不存在则自动下载"""
+    """检测数据目录，不存在则自动下载
+    
+    如果数据不存在且下载失败，会抛出异常阻止训练。
+    """
     data_dir = RL_DATA_DIR / benchmark
     if data_dir.exists() and any(data_dir.iterdir()):
         logger.info(f"Data for '{benchmark}' exists at {data_dir}")
@@ -41,12 +44,14 @@ def _ensure_data_exists(benchmark: str) -> None:
     
     logger.info(f"Data for '{benchmark}' not found, downloading...")
     try:
-        from rdagent.scenarios.rl.eval.autorl_bench.utils.download import download_dataset
-        download_dataset(benchmark, str(data_dir))
+        from rdagent.scenarios.rl.datasets import prepare, DATASETS
+        if benchmark not in DATASETS:
+            raise ValueError(f"Unknown dataset: {benchmark}. Available: {list(DATASETS.keys())}")
+        prepare(benchmark)
         logger.info(f"Data downloaded to {data_dir}")
     except Exception as e:
-        logger.warning(f"Failed to download data for '{benchmark}': {e}")
-        logger.warning("You may need to manually download the dataset")
+        logger.error(f"Failed to download data for '{benchmark}': {e}")
+        raise RuntimeError(f"Data for '{benchmark}' not available and download failed: {e}")
 
 
 def _ensure_model_exists(model_name: str) -> None:
@@ -68,13 +73,9 @@ def _ensure_model_exists(model_name: str) -> None:
         return
     
     logger.info(f"Model '{model_name}' not found, downloading...")
-    try:
-        from rdagent.scenarios.rl.eval.autorl_bench.utils.download import download_model
-        download_model(model_name, str(RL_MODELS_DIR))
-        logger.info(f"Model downloaded to {model_dir}")
-    except Exception as e:
-        logger.warning(f"Failed to download model '{model_name}': {e}")
-        logger.warning("You may need to manually download the model")
+    from rdagent.scenarios.rl.eval.autorl_bench.utils.download import download_model
+    download_model(model_name, str(RL_MODELS_DIR))
+    logger.info(f"Model downloaded to {model_dir}")
 
 
 def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
@@ -125,5 +126,57 @@ def get_rl_env(benchmark: str = "base", timeout: int = 3600) -> DockerEnv:
     logger.info(f"RL DockerEnv prepared: {conf.image}")
     logger.info(f"  Models: {RL_MODELS_DIR} -> /models")
     logger.info(f"  Data: {RL_DATA_DIR} -> /data")
+    
+    return env
+
+
+# RL Benchmark 资源路径
+RL_BENCHMARKS_DIR = RL_RD_SETTING.file_path / "benchmarks"
+
+
+class RLBenchmarkDockerConf(DockerConf):
+    """RL Benchmark Docker 配置（OpenCompass）"""
+    build_from_dockerfile: bool = True
+    dockerfile_folder_path: Path = Path(__file__).parent.parent.parent.parent / "components" / "coder" / "finetune" / "env" / "docker" / "opencompass"
+    image: str = "rdagent-opencompass:latest"
+    mount_path: str = "/workspace"
+    default_entry: str = "opencompass --help"
+    running_timeout_period: int = 3600
+    enable_cache: bool = False
+    save_logs_to_file: bool = True
+    network: str | None = "host"
+    env_dict: dict = {"COMPASS_DATA_CACHE": "/benchmarks/opencompass_data"}
+
+
+def get_rl_benchmark_env(timeout: int = 3600) -> DockerEnv:
+    """
+    获取 RL 评测环境（OpenCompass）
+    
+    独立的 RL benchmark 环境，不依赖 SFT。
+    
+    Args:
+        timeout: 运行超时时间（秒）
+        
+    Returns:
+        配置好的 DockerEnv
+    """
+    # 确保 benchmarks 目录存在
+    RL_BENCHMARKS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    conf = RLBenchmarkDockerConf()
+    conf.running_timeout_period = timeout
+    
+    # 挂载 RL 的 benchmarks 目录（使用绝对路径绑定）
+    conf.extra_volumes = {
+        str(RL_BENCHMARKS_DIR.resolve()): {"bind": "/benchmarks", "mode": "rw"},
+        str(RL_MODELS_DIR.resolve()): {"bind": "/models", "mode": "ro"},
+    }
+    
+    env = DockerEnv(conf=conf)
+    env.prepare()
+    
+    logger.info(f"RL Benchmark DockerEnv prepared")
+    logger.info(f"  Benchmarks: {RL_BENCHMARKS_DIR} -> /benchmarks")
+    logger.info(f"  Models: {RL_MODELS_DIR} -> /models")
     
     return env
