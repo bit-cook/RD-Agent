@@ -41,9 +41,7 @@ class OpenCompassEval(BenchmarkBase):
         workspace_path = Path(workspace.workspace_path)
         model_path = workspace_path / "output"
         
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model output not found at {model_path}")
-        
+        # 注：output 目录存在性检查已在 runner.py 中完成
         # 调用现有的 run_benchmark，参数从全局配置获取
         result = run_benchmark(
             workspace_path=str(workspace_path),

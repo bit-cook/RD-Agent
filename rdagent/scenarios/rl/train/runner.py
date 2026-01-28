@@ -70,16 +70,23 @@ class RLPostTrainingRunner(Developer):
             benchmark_name = getattr(exp.sub_tasks[0], "benchmark", "")
         
         if benchmark_name and result.exit_code == 0:
-            logger.info(f"=== Starting Benchmark Evaluation ({benchmark_name}) ===")
+            # 检查是否有模型输出
+            output_path = Path(workspace.workspace_path) / "output"
+            has_model_output = output_path.exists() and any(output_path.iterdir())
             
-            # 使用统一的 benchmark 接口
-            from rdagent.scenarios.rl.eval.core import load_benchmark
-            
-            benchmark = load_benchmark(benchmark_name)
-            bench_results = benchmark.run(workspace)
-            
-            exp.result["benchmark"] = bench_results
+            if not has_model_output:
+                # 没有模型产出（debug 模式），跳过评测
+                logger.info("No model output found, skip benchmark (debug mode)")
+                exp.result["benchmark"] = None
+            else:
+                # 有模型，执行评测
+                logger.info(f"=== Starting Benchmark Evaluation ({benchmark_name}) ===")
+                from rdagent.scenarios.rl.eval.core import load_benchmark
+                
+                benchmark = load_benchmark(benchmark_name)
+                exp.result["benchmark"] = benchmark.run(workspace)
         elif benchmark_name:
             logger.info("Skip benchmark evaluation due to training failure.")
+            exp.result["benchmark"] = None
         
         return exp
