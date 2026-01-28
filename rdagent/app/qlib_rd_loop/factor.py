@@ -35,6 +35,7 @@ def main(
     all_duration: str | None = None,
     checkout: Annotated[bool, typer.Option("--checkout/--no-checkout", "-c/-C")] = True,
     checkout_path: Optional[str] = None,
+    **kwargs
 ):
     """
     Auto R&D Evolving loop for fintech factors.
@@ -53,6 +54,9 @@ def main(
         model_loop = FactorRDLoop(FACTOR_PROP_SETTING)
     else:
         model_loop = FactorRDLoop.load(path, checkout=checkout)
+    
+    if "user_interaction_queues" in kwargs and kwargs["user_interaction_queues"] is not None:
+        model_loop._set_interactor(*kwargs["user_interaction_queues"])
     asyncio.run(model_loop.run(step_n=step_n, loop_n=loop_n, all_duration=all_duration))
 
 

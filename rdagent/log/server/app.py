@@ -6,8 +6,9 @@ import traceback
 from collections import defaultdict
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from pathlib import Path
+from queue import Empty
 
 import randomname
 import typer
@@ -63,6 +64,14 @@ class RDAgentTask:
         self.scenario = scenario
         self.trace_name = trace_name
         self.process: Process | None = None
+
+        # Two IPC queues for user interaction.
+        # - `user_request_q`: rdagent subprocess -> server (dicts to render on frontend)
+        # - `user_response_q`: server -> rdagent subprocess (user input dicts)
+        # NOTE: Use multiprocessing.Queue because rdagent is started as a separate process.
+        self.user_request_q: Queue = Queue(maxsize=1024)
+        self.user_response_q: Queue = Queue(maxsize=1024)
+
         if create_process:
             self.process = Process(
                 target=self._run,
@@ -83,6 +92,17 @@ class RDAgentTask:
             self.process.terminate()
             self.process.join()
 
+        # Best-effort cleanup for IPC queues.
+        for q in (self.user_request_q, self.user_response_q):
+            try:
+                q.cancel_join_thread()
+            except Exception:
+                pass
+            try:
+                q.close()
+            except Exception:
+                pass
+
     def _run(self) -> None:
         from rdagent.log import rdagent_logger
         rdagent_logger.set_storages_path(self.log_trace_path)
@@ -90,6 +110,13 @@ class RDAgentTask:
         with open(self.stdout_path, "w") as log_file:
             with redirect_stdout(log_file), redirect_stderr(log_file):
                 try:
+                    # Inject queues into kwargs as a tuple so downstream code can:
+                    # (user_request_q, user_response_q)
+                    self.kwargs.setdefault(
+                        "user_interaction_queues",
+                        (self.user_request_q, self.user_response_q),
+                    )
+
                     if self.target_name == "data_science":
                         from rdagent.app.data_science.loop import main as data_science
 
@@ -125,6 +152,32 @@ class RDAgentTask:
 rdagent_processes: dict[str, RDAgentTask] = {}
 server_port = 19899
 log_folder_path = Path(UI_SETTING.trace_folder).absolute()
+
+
+def _drain_user_requests_into_messages(task: RDAgentTask) -> None:
+    """Move a single pending user-interaction request into `task.messages`.
+
+    Assumption: each rdagent process only has one active request at a time.
+    """
+
+    try:
+        req = task.user_request_q.get_nowait()
+    except Empty:
+        return
+    except Exception:
+        return
+
+    # Standardize the message shape for the frontend.
+    # The agent can send either a full message dict, or a raw content dict.
+    if isinstance(req, dict) and {"tag", "timestamp", "content"}.issubset(req.keys()):
+        msg = req
+    else:
+        msg = {
+            "tag": "user_interaction.request",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "content": req,
+        }
+    task.messages.append(msg)
 
 
 @app.route("/favicon.ico")
@@ -190,6 +243,9 @@ def update_trace():
     trace_id = str(log_folder_path / trace_id)
 
     task = _get_or_create_task(trace_id)
+
+    # Make sure any pending user-interaction requests are visible to the frontend.
+    _drain_user_requests_into_messages(task)
 
     if task.process is not None and not task.is_alive():
         if not task.messages or task.messages[-1].get("tag") != "END":
@@ -324,6 +380,41 @@ def receive_msgs():
     else:
         task = _get_or_create_task(data["id"])
         task.messages.append(data["msg"])
+
+    return jsonify({"status": "success"}), 200
+
+
+@app.route("/user_interaction/submit", methods=["POST"])
+def submit_user_interaction_response():
+    """Frontend submits a user response; server forwards it to the rdagent subprocess via IPC queue."""
+    data = request.get_json(silent=True) or {}
+    trace_id = data.get("id")
+    payload = data.get("payload")
+
+    if not trace_id:
+        return jsonify({"error": "Trace ID is required"}), 400
+    if payload is None:
+        return jsonify({"error": "Missing 'payload'"}), 400
+
+    trace_id = str(log_folder_path / trace_id)
+    task = _get_or_create_task(trace_id)
+
+    # Best-effort: also surface any outstanding requests before accepting a response.
+    _drain_user_requests_into_messages(task)
+
+    try:
+        task.user_response_q.put(payload, block=False)
+    except Exception as e:
+        return jsonify({"error": f"Failed to enqueue user response: {e}"}), 500
+
+    # Optional: mirror the response into the trace stream for debugging.
+    task.messages.append(
+        {
+            "tag": "user_interaction.response",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "content": payload,
+        }
+    )
 
     return jsonify({"status": "success"}), 200
 

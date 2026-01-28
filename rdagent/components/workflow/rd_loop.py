@@ -5,6 +5,7 @@ It is from `rdagent/app/qlib_rd_loop/model.py` and try to replace `rdagent/app/q
 
 import asyncio
 from typing import Any
+from multiprocessing import Queue
 
 from rdagent.components.workflow.conf import BasePropSetting
 from rdagent.core.conf import RD_AGENT_SETTINGS
@@ -42,8 +43,31 @@ class RDLoop(LoopBase, metaclass=LoopMeta):
         super().__init__()
 
     # excluded steps
+    def _set_interactor(self, user_request_q: Queue, user_response_q: Queue):
+        self.user_request_q = user_request_q
+        self.user_response_q = user_response_q
+
+    def _interact(self, hypo: Hypothesis) -> Hypothesis:
+        if not (hasattr(self, "user_request_q") and hasattr(self, "user_response_q")):
+            return hypo
+
+        logger.info("Waiting for user interaction...")
+        try:
+            self.user_request_q.put(hypo.__dict__)
+            res_dict = self.user_response_q.get()
+            modified_hypo = Hypothesis(**res_dict)
+        except (EOFError, OSError):
+            logger.info("User interaction failed, using original hypothesis.")
+            return hypo
+        logger.info("Received user interaction.")
+        return modified_hypo
+
     def _propose(self):
         hypothesis = self.hypothesis_gen.gen(self.trace)
+                        
+        # user can change the hypothesis here
+        hypothesis = self._interact(hypothesis)
+
         logger.log_object(hypothesis, tag="hypothesis generation")
         return hypothesis
 
