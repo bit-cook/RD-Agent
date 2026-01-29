@@ -1,9 +1,8 @@
 """
 RL Runner - Execute RL training code in Docker
-
-参考 SFT: rdagent/scenarios/finetune/train/runner.py
 """
 
+import hashlib
 from pathlib import Path
 
 from rdagent.app.rl.conf import RL_RD_SETTING
@@ -11,7 +10,15 @@ from rdagent.core.developer import Developer
 from rdagent.core.experiment import Experiment
 from rdagent.core.scenario import Scenario
 from rdagent.log import rdagent_logger as logger
-from rdagent.scenarios.rl.env.conf import get_rl_env
+from rdagent.scenarios.rl.env.conf import get_rl_env, RL_MODELS_DIR
+
+
+def _file_hash(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
+    """计算文件 MD5（只读前 chunk_size 字节，快速判断）"""
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        h.update(f.read(chunk_size))
+    return h.hexdigest()
 
 
 class RLPostTrainingRunner(Developer):
@@ -28,8 +35,8 @@ class RLPostTrainingRunner(Developer):
         流程：
         1. 获取 Docker 环境
         2. 调用 workspace.run() 执行 main.py
-        3. 评测训练后模型
-        4. 返回更新后的 experiment
+        3. 验证训练是否真的发生
+        4. 评测训练后模型
         """
         workspace = exp.experiment_workspace
         
@@ -64,29 +71,25 @@ class RLPostTrainingRunner(Developer):
             "running_time": result.running_time,
         }
 
-        # 评测训练后模型（使用统一接口）
-        benchmark_name = RL_RD_SETTING.benchmark
-        if not benchmark_name and exp.sub_tasks:
-            benchmark_name = getattr(exp.sub_tasks[0], "benchmark", "")
+        # 评测
+        benchmark_name = RL_RD_SETTING.benchmark or getattr(exp.sub_tasks[0], "benchmark", "") if exp.sub_tasks else ""
+        exp.result["benchmark"] = None
         
-        if benchmark_name and result.exit_code == 0:
-            # 检查是否有模型输出
-            output_path = Path(workspace.workspace_path) / "output"
-            has_model_output = output_path.exists() and any(output_path.iterdir())
-            
-            if not has_model_output:
-                # 没有模型产出（debug 模式），跳过评测
-                logger.info("No model output found, skip benchmark (debug mode)")
-                exp.result["benchmark"] = None
-            else:
-                # 有模型，执行评测
-                logger.info(f"=== Starting Benchmark Evaluation ({benchmark_name}) ===")
-                from rdagent.scenarios.rl.eval.core import load_benchmark
-                
-                benchmark = load_benchmark(benchmark_name)
-                exp.result["benchmark"] = benchmark.run(workspace)
-        elif benchmark_name:
-            logger.info("Skip benchmark evaluation due to training failure.")
-            exp.result["benchmark"] = None
+        if not benchmark_name or result.exit_code != 0:
+            return exp
         
+        output_model = Path(workspace.workspace_path) / "output" / "model.safetensors"
+        original_model = RL_MODELS_DIR / RL_RD_SETTING.base_model / "model.safetensors"
+        
+        if not output_model.exists():
+            logger.info("No model output, skip benchmark")
+            return exp
+        
+        if original_model.exists() and _file_hash(output_model) == _file_hash(original_model):
+            logger.warning("Model unchanged from baseline, skip benchmark")
+            return exp
+        
+        logger.info(f"=== Benchmark: {benchmark_name} ===")
+        from rdagent.scenarios.rl.eval.core import load_benchmark
+        exp.result["benchmark"] = load_benchmark(benchmark_name).run(workspace)
         return exp
