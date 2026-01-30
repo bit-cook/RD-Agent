@@ -73,7 +73,7 @@ def _ensure_model_exists(model_name: str) -> None:
         return
     
     logger.info(f"Model '{model_name}' not found, downloading...")
-    from rdagent.scenarios.rl.eval.autorl_bench.utils.download import download_model
+    from rdagent.scenarios.rl.autorl_bench.utils.download import download_model
     download_model(model_name, str(RL_MODELS_DIR))
     logger.info(f"Model downloaded to {model_dir}")
 

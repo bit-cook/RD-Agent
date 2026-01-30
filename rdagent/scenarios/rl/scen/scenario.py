@@ -80,7 +80,7 @@ class RLPostTrainingScen(Scenario):
         3. 调用 run_benchmark() 评测
         4. 返回结果（会被缓存）
         """
-        from rdagent.scenarios.rl.eval.autorl_bench.benchmark import run_benchmark
+        from rdagent.scenarios.rl.autorl_bench.benchmark import run_benchmark
 
         # 创建 workspace
         ws = RLWorkspace()

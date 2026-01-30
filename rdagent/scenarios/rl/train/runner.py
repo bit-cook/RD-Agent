@@ -90,6 +90,11 @@ class RLPostTrainingRunner(Developer):
             return exp
         
         logger.info(f"=== Benchmark: {benchmark_name} ===")
-        from rdagent.scenarios.rl.eval.core import load_benchmark
-        exp.result["benchmark"] = load_benchmark(benchmark_name).run(workspace)
+        from rdagent.scenarios.rl.autorl_bench.benchmark import run_benchmark
+        exp.result["benchmark"] = run_benchmark(
+            workspace_path=str(workspace.workspace_path),
+            model_path=str(output_model.parent),
+            model_name=RL_RD_SETTING.base_model,
+            benchmark_name=benchmark_name,
+        )
         return exp
