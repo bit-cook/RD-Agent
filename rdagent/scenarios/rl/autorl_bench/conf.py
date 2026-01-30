@@ -18,7 +18,7 @@ class AutoRLBenchSettings(ExtendedBaseSettings):
     """
     model_config = SettingsConfigDict(env_prefix="AUTORL_", protected_namespaces=())
     
-    file_path: Path = Path.cwd() / "git_ignore_folder" / "autorl_bench_files"
+    file_path: Path = Path.cwd() / "git_ignore_folder" / "rl_files"
 
 
 AUTORL_BENCH_SETTING = AutoRLBenchSettings()

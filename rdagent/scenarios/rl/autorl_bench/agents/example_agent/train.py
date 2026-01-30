@@ -71,7 +71,7 @@ def main():
     DATA_PATH = os.environ.get("DATA_PATH")
     OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/tmp/autorl_output")
     GRADING_SERVER_URL = os.environ.get("GRADING_SERVER_URL", "")
-    TRAIN_RATIO = float(os.environ.get("TRAIN_RATIO", "0.1"))
+    TRAIN_RATIO = float(os.environ.get("TRAIN_RATIO", "0.05"))
     NUM_EPOCHS = int(os.environ.get("NUM_EPOCHS", "3"))
     
     if not MODEL_PATH or not DATA_PATH:
