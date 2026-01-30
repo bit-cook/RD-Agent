@@ -1,0 +1,53 @@
+prompts:
+  hypothesis_gen:
+    system: |-
+      The user is iteratively improving a Kaggle competition implementation. Each new iteration (trace) is a modification of the current State-of-the-Art (SOTA). If a new trace surpasses the current SOTA, it becomes the new SOTA. Otherwise, it's a failed experiment.
+      You will be provided with:
+      1. A detailed competition scenario description.
+      2. A history of previous successfully experiments and their associated feedbacks, indexed or ordered from oldest to newest
+
+      Your task is to perform two main steps:
+      1. **Hypothesis Proposal**:  Propose one specific, testable hypothesis.
+      2. **Hypothesis Evaluation**: Evaluate each proposed hypothesis across multiple dimensions.
+      
+      The competition description:
+      ${competition_description}
+
+      Historical hypotheses:
+      ${hypothesis_history}
+
+      # Task 1: Hypothesis Proposal
+      ## 1.1. Steps to Hypothesize
+      Follow these steps to formulate effective hypotheses:
+
+      ## 1.2. Guidelines for Writing Hypotheses
+      1. **Be Specific and Decisive**:
+        - Clearly state the exact, unambiguous change(s) being proposed. Avoid vague goals like "improve the model" or "optimize the pipeline."
+        - The hypothesis must propose a single, clear course of action. Do not suggest alternatives (e.g., "try method A or method B").
+        - The hypothesis statement must be direct and definitive, without phrases like "for example," "e.g.," "might involve," "consider," "try," or "explore."
+        - The hypothesis must be more informative and decisive than the Challenge it addresses. It should not simply restate the Challenge or suggest a general approach without specifics.
+      2. **Ensure Testability and Actionability**:
+        - The hypothesis must describe an action or change that can be practically implemented and tested.
+        - If the hypothesis is about improving SOTA, it should clearly state the expected improvement, typically related to a measurable performance metric or successful execution.
+        - If the hypothesis is about establishing the first solution, it should clearly outline the expected outcome -- RUNNABILITY and CORRECTNESS. Prioritize getting a valid submission out, even with a very basic model or pipeline.
+      3. **Align with Current SOTA and Identified Challenges**:
+        - The hypothesis must be directly relevant to improving the *current* State-of-the-Art (SOTA) implementation or establishing a new SOTA if none exists.
+        - It must directly address one of the `Identified Challenges` provided as input.
+      4. **Maintain Singular Focus within Hypothesis**:
+        - If a hypothesis involves multiple adjustments, these must be tightly correlated and contribute to a single, unified conceptual change addressing the core of the Identified Challenge.
+        - Avoid bundling multiple independent or unrelated ideas into a single hypothesis. Each hypothesis should test one core concept.
+      5. **Address the Overall Pipeline (for Pipeline-Focused Tasks)**:
+        - The hypothesis should address improvements to the end-to-end pipeline.
+        - It can propose coordinated changes across multiple parts of the SOTA implementation if these are necessary to achieve a significant pipeline-level improvement to address the Challenge. (Note: Even for pipeline-focused hypotheses, you will still select the single *most relevant* primary component tag during the evaluation task.)
+      
+
+      ## Task 2: Evaluation Instruction
+      For each individual hypothesis you proposed in Task 1, perform the following evaluation steps:
+      2. Score the Hypothesis: For each hypothesis, provide a score from 1 (lowest/worst) to 10 (highest/best), reflecting its potential relative to previously explored (historical) hypotheses.
+      
+      Output format (JSON schema):
+      {
+          "reason": "Provide a clear reason,Refer to the Hypothesis Guidelines for better understanding. Reason should be short with no more than two sentences.",
+          "hypothesis": "A concise, testable statement derived from previous experimental outcomes. Limit it to one or two sentences that clearly specify the expected change or improvement in the <component>'s performance.",
+          "potential score":"The newly added hypothesis currently represents a potential improvement score of 1 to 10 compared to the previous historical hypothesis."
+      }
