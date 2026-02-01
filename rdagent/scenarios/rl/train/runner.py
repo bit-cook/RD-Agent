@@ -11,6 +11,7 @@ from rdagent.core.experiment import Experiment
 from rdagent.core.scenario import Scenario
 from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.rl.env.conf import get_rl_env, RL_MODELS_DIR
+from rdagent.scenarios.rl.autorl_bench.utils.grading import submit_to_grading_server
 
 
 def _file_hash(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
@@ -90,11 +91,18 @@ class RLPostTrainingRunner(Developer):
             return exp
         
         logger.info(f"=== Benchmark: {benchmark_name} ===")
-        from rdagent.scenarios.rl.autorl_bench.benchmark import run_benchmark
-        exp.result["benchmark"] = run_benchmark(
-            workspace_path=str(workspace.workspace_path),
-            model_path=str(output_model.parent),
-            model_name=RL_RD_SETTING.base_model,
-            benchmark_name=benchmark_name,
-        )
+        
+        # 优先使用 grading server（如果有的话）
+        grading_result = submit_to_grading_server(str(output_model.parent))
+        if grading_result:
+            exp.result["benchmark"] = grading_result
+        else:
+            # 本地评测
+            from rdagent.scenarios.rl.autorl_bench.benchmark import run_benchmark
+            exp.result["benchmark"] = run_benchmark(
+                workspace_path=str(workspace.workspace_path),
+                model_path=str(output_model.parent),
+                model_name=RL_RD_SETTING.base_model,
+                benchmark_name=benchmark_name,
+            )
         return exp
