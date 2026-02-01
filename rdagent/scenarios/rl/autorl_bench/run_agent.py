@@ -52,11 +52,12 @@ def setup_workspace(task: str, base_model: str, src_model: Path, src_data: Path)
     data_link = workspace / "data"
     model_link = workspace / "models" / base_model
     
-    if not data_link.exists():
+    # 处理已存在的 symlink
+    if not data_link.exists() and not data_link.is_symlink():
         data_link.symlink_to(src_data)
     
     model_link.parent.mkdir(parents=True, exist_ok=True)
-    if not model_link.exists():
+    if not model_link.exists() and not model_link.is_symlink():
         model_link.symlink_to(src_model)
     
     (workspace / "output").mkdir(parents=True, exist_ok=True)

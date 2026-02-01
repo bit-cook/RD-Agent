@@ -7,9 +7,8 @@ import re
 import time
 
 import requests
-import torch
 from datasets import Dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
 
@@ -86,7 +85,6 @@ def main():
     print(f"Train samples: {len(train_data)}")
     dataset = Dataset.from_list([{"prompt": d["prompt"], "answer": d["answer"]} for d in train_data])
 
-    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -94,28 +92,30 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     start_time = time.time()
 
+    # 第一个 epoch 使用原始模型，后续 epoch 使用上一个 checkpoint
+    current_model_path = MODEL_PATH
+
     for epoch in range(NUM_EPOCHS):
         print(f"\n=== Epoch {epoch + 1}/{NUM_EPOCHS} ===")
 
         config = GRPOConfig(
             output_dir=OUTPUT_DIR,
             num_train_epochs=1,
-            per_device_train_batch_size=64,
+            per_device_train_batch_size=4,       # 小 batch 避免 OOM
+            gradient_accumulation_steps=16,      # 梯度累积保持有效batch=64
             learning_rate=1e-5,
             max_completion_length=256,
             num_generations=4,
-            logging_steps=10,
+            logging_steps=5,
             save_strategy="no",
             report_to="none",
             bf16=True,
-            # vLLM 加速生成
-            use_vllm=True,
-            vllm_mode="colocate",
-            vllm_gpu_memory_utilization=0.9,
         )
 
+        # 直接传模型路径，让 GRPOTrainer 自己管理模型加载
+        # 避免 vLLM colocate 模式下模型被加载两次导致 OOM
         trainer = GRPOTrainer(
-            model=model,
+            model=current_model_path,
             reward_funcs=gsm8k_reward_func,
             args=config,
             train_dataset=dataset,
@@ -127,6 +127,9 @@ def main():
         checkpoint_dir = f"{OUTPUT_DIR}/checkpoint-epoch{epoch + 1}"
         trainer.save_model(checkpoint_dir)
         tokenizer.save_pretrained(checkpoint_dir)
+        
+        # 下一个 epoch 从这个 checkpoint 继续训练
+        current_model_path = checkpoint_dir
 
         result = submit_for_grading(GRADING_SERVER_URL, checkpoint_dir)
         if result:
