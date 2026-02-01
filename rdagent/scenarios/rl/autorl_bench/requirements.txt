@@ -1,0 +1,21 @@
+# AutoRL-Bench 依赖
+# conda 环境: cwy-rl (Python 3.10)
+
+# 评测
+opencompass==0.5.1
+vllm==0.15.0
+
+# 数据处理
+numpy==1.26.4
+pandas==1.5.3
+
+# 模型
+torch==2.9.1
+transformers==4.57.3
+
+# Web 服务
+flask
+flask-cors
+
+# 其他（rdagent 已有）
+# loguru, requests, pyyaml

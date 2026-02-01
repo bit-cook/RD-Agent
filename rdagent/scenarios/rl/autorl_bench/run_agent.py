@@ -27,6 +27,8 @@ from rdagent.scenarios.rl.autorl_bench.conf import (
 )
 from rdagent.scenarios.rl.autorl_bench.agents import get_agent
 from rdagent.scenarios.rl.autorl_bench.utils.download import download_model, download_data
+from rdagent.scenarios.rl.autorl_bench.utils.baseline import get_baseline_score
+from rdagent.scenarios.rl.autorl_bench.utils.grading import set_baseline_score
 
 
 def prepare_resources(task: str, base_model: str) -> tuple[Path, Path]:
@@ -141,7 +143,20 @@ def run_agent(agent_id: str, task: str, base_model: str, timeout: int, port: int
     print(f"  Timeout: {timeout}s")
     
     grading_proc = start_grading_server(workspace, task, base_model, port)
-    print(f"  Grading Server: http://localhost:{port}")
+    grading_url = f"http://localhost:{port}"
+    print(f"  Grading Server: {grading_url}")
+    
+    # 评测 baseline 并设置到 grading_server（有缓存则跳过评测）
+    print(f"  Evaluating baseline...")
+    baseline = get_baseline_score(
+        task=task,
+        model_name=base_model,
+        model_path=str(workspace / "models" / base_model),
+        workspace_path=str(workspace),
+        test_range="[:]",  # 全量评测
+    )
+    set_baseline_score(baseline, grading_url)
+    print(f"  Baseline Score: {baseline}")
     
     try:
         env = {

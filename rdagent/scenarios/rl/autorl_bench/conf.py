@@ -50,3 +50,7 @@ def get_models_dir() -> Path:
 
 def get_data_dir() -> Path:
     return AUTORL_BENCH_SETTING.file_path / "datasets"
+
+
+def get_baseline_cache_dir() -> Path:
+    return AUTORL_BENCH_SETTING.file_path / "baseline_workspace"

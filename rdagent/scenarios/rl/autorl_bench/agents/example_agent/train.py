@@ -100,7 +100,7 @@ def main():
         config = GRPOConfig(
             output_dir=OUTPUT_DIR,
             num_train_epochs=1,
-            per_device_train_batch_size=4,
+            per_device_train_batch_size=64,
             learning_rate=1e-5,
             max_completion_length=256,
             num_generations=4,
@@ -108,6 +108,10 @@ def main():
             save_strategy="no",
             report_to="none",
             bf16=True,
+            # vLLM 加速生成
+            use_vllm=True,
+            vllm_mode="colocate",
+            vllm_gpu_memory_utilization=0.9,
         )
 
         trainer = GRPOTrainer(

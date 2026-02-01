@@ -125,12 +125,13 @@ def submit():
     
     logger.info(f"[SUBMIT #{submission_id}] Started | model_path={model_path}")
     
-    # 运行评测
+    # 运行评测（全量）
     result = run_benchmark(
         workspace_path=str(WORKSPACE),
         model_path=model_path,
         model_name=BASE_MODEL,
         benchmark_name=TASK,
+        test_range="[:]",
     )
     
     elapsed_seconds = time.time() - start_time

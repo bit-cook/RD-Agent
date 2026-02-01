@@ -2,18 +2,18 @@
 AutoRL-Bench Benchmark: 评测逻辑
 
 使用 OpenCompass 评测静态任务（如 gsm8k, math）
+支持本地运行和 Docker 运行两种模式。
 """
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
 import yaml
 
 from rdagent.components.benchmark import BENCHMARK_CONFIGS_DIR
 from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.rl.autorl_bench.tasks import get_task
-from rdagent.scenarios.rl.env.conf import get_rl_benchmark_env
 from rdagent.utils.agent.tpl import T
 
 
@@ -57,7 +57,7 @@ def run_benchmark(
     model_name: str,
     benchmark_name: str,
     gpu_count: int = 1,
-    test_range: Optional[str] = "[:100]",
+    test_range: Optional[str] = "[:]",
     num_runs: int = 1,
 ) -> Dict[str, Any]:
     """运行评测
@@ -97,9 +97,9 @@ def _run_opencompass_eval(
     model_name: str,
     task_config,
     gpu_count: int = 1,
-    test_range: Optional[str] = "[:100]",
+    test_range: Optional[str] = "[:]",
 ) -> Dict[str, Any]:
-    """使用 OpenCompass 评测"""
+    """使用 OpenCompass 评测（本地运行）"""
     result = {
         "benchmark": task_config.id,
         "model_path": model_path,
@@ -113,6 +113,9 @@ def _run_opencompass_eval(
         return result
     
     workspace_path = Path(workspace_path)
+    model_path = str(Path(model_path).resolve())
+    work_dir = workspace_path / "benchmark_results"
+    work_dir.mkdir(parents=True, exist_ok=True)
     
     # 获取评测配置
     eval_config = task_config.eval_config or {}
@@ -121,7 +124,7 @@ def _run_opencompass_eval(
     # 从 models.yaml 获取模型推理配置
     inference_config = get_model_inference_config(model_name, gpu_count)
     
-    # 生成 OpenCompass 配置
+    # 生成 OpenCompass 配置（使用本地路径）
     template_vars = {
         "model_abbr": f"rl-{task_config.id}",
         "model_path": model_path,
@@ -129,10 +132,9 @@ def _run_opencompass_eval(
         "test_range": test_range,
         "num_runs": 1,
         "pass_k": None,
-        "work_dir": str(workspace_path / "benchmark_results"),
+        "work_dir": str(work_dir),
         "is_lora": False,
         "lora_path": "",
-        # 从 models.yaml 动态加载的配置
         **inference_config,
     }
     
@@ -140,29 +142,26 @@ def _run_opencompass_eval(
     config_path = workspace_path / "opencompass_config.py"
     config_path.write_text(config_content)
     
-    # 获取评测环境
-    env = get_rl_benchmark_env()
-    work_dir = str(workspace_path / "benchmark_results")
-    
     logger.info(f"Running OpenCompass benchmark: {task_config.id}")
     logger.info(f"Model: {model_path}")
     logger.info(f"Config: {config_path}")
+    logger.info(f"Work dir: {work_dir}")
     
-    # 运行 OpenCompass
-    entry_cmd = f"opencompass {config_path} --work-dir {work_dir}"
-    run_result = env.run(
-        entry=entry_cmd,
-        local_path=str(workspace_path),
-    )
+    # 本地运行 OpenCompass
+    cmd = ["opencompass", str(config_path), "--work-dir", str(work_dir)]
+    logger.info(f"Command: {' '.join(cmd)}")
     
-    if run_result.exit_code != 0:
-        logger.warning(f"OpenCompass failed: {run_result.stdout[:500] if run_result.stdout else 'No output'}")
-        result["error"] = f"OpenCompass exit code: {run_result.exit_code}"
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    
+    if proc.returncode != 0:
+        error_msg = proc.stderr[:1000] if proc.stderr else proc.stdout[:1000] if proc.stdout else "No output"
+        logger.warning(f"OpenCompass failed: {error_msg}")
+        result["error"] = f"OpenCompass exit code: {proc.returncode}"
+        result["raw_output"] = error_msg
         return result
     
     # 解析结果
-    results_dir = workspace_path / "benchmark_results"
-    timestamped_dirs = sorted([d for d in results_dir.glob("202*_*") if d.is_dir()], reverse=True)
+    timestamped_dirs = sorted([d for d in work_dir.glob("202*_*") if d.is_dir()], reverse=True)
     
     if not timestamped_dirs:
         result["error"] = "No results directory found"
