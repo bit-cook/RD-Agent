@@ -67,10 +67,12 @@ autorl_bench/
 
 ```
 workspace/{task}/
-├── models/                   # 模型
-│   └── Qwen/Qwen2.5-xxx/     # 下载的 base model
-├── data/                     # 数据
-│   └── {task}/train.jsonl    # 训练数据（已删除 test 防泄漏）
+├── description.md            # 任务描述（给 Agent 看）
+├── instructions.txt          # Agent 使用说明
+├── models/
+│   ├── datasets/{task}/      # 训练数据（已删除 test 防泄漏）
+│   │   └── train.jsonl
+│   └── models/Qwen/xxx/      # 下载的 base model
 ├── output/                   # Agent 输出的训练后模型
 │   ├── config.json
 │   ├── model.safetensors

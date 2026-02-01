@@ -12,6 +12,7 @@ from rdagent.app.rl.conf import RL_RD_SETTING
 from rdagent.core.scenario import Scenario
 from rdagent.core.utils import cache_with_pickle
 from rdagent.log import rdagent_logger as logger
+from rdagent.scenarios.rl.autorl_bench.conf import get_autorl_bench_dir
 from rdagent.scenarios.rl.env.conf import get_rl_benchmark_env
 from rdagent.scenarios.rl.experiment.workspace import RLWorkspace
 from rdagent.scenarios.shared.get_runtime_info import get_runtime_environment_by_env
@@ -67,6 +68,15 @@ class RLPostTrainingScen(Scenario):
         self.baseline_benchmark_score = baseline_result.get("benchmark", {})
         logger.info(f"  Baseline score: {self.baseline_benchmark_score}")
 
+        # 读取任务描述
+        task_desc_file = get_autorl_bench_dir() / "tasks" / self.benchmark / "description.md"
+        if task_desc_file.exists():
+            self.task_description = task_desc_file.read_text()
+            logger.info(f"  Loaded task description from {task_desc_file}")
+        else:
+            self.task_description = ""
+            logger.warning(f"  Task description not found: {task_desc_file}")
+
     def benchmark_hash(self, model_name: str, benchmark_name: str) -> str:
         """缓存 key"""
         return f"rl_baseline_eval_{model_name}_{benchmark_name}"
@@ -111,7 +121,7 @@ class RLPostTrainingScen(Scenario):
     @property
     def background(self) -> str:
         """Background information for the agent"""
-        return f"""RL Post-training Scenario
+        background = f"""RL Post-training Scenario
 
 Base Model: {self.base_model}
 Benchmark: {self.benchmark}
@@ -119,6 +129,9 @@ Baseline Score: {self.baseline_benchmark_score}
 
 Goal: Improve model performance on {self.benchmark} through RL post-training.
 """
+        if self.task_description:
+            background += f"\n## Task Description\n{self.task_description}"
+        return background
 
     def get_runtime_environment(self) -> str:
         """Get runtime environment info"""
