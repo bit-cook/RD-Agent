@@ -39,11 +39,12 @@ class RLPostTrainingScen(Scenario):
         logger.info(f"  Base model: {self.base_model}")
         logger.info(f"  Benchmark: {self.benchmark}")
 
-        # 首先确保数据和模型存在（不存在则下载）
-        from rdagent.scenarios.rl.env.conf import _ensure_data_exists, _ensure_model_exists
+        # 下载数据和模型（内部有存在检查）
+        from rdagent.scenarios.rl.autorl_bench.utils.download import download_data, download_model
+        from rdagent.scenarios.rl.env.conf import RL_DATA_DIR, RL_MODELS_DIR
         logger.info("Checking and downloading resources...")
-        _ensure_data_exists(self.benchmark)
-        _ensure_model_exists(self.base_model)
+        download_data(self.benchmark, str(RL_DATA_DIR))
+        download_model(self.base_model, str(RL_MODELS_DIR))
 
         # 获取 GPU 信息
         try:
