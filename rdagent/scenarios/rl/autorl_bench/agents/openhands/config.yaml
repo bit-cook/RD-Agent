@@ -2,5 +2,5 @@ name: "OpenHands Agent"
 description: "使用 OpenHands SDK，让 LLM 自主决定训练策略（类似 openhands-magic）"
 start: "start.sh"
 env_vars:
-  MAX_ITERATIONS: "50"
-# LLM_MODEL 和 LLM_API_KEY 从系统环境变量读取
+  MAX_ITERATIONS: "500"
+  LLM_MODEL: "gpt-5"  # 必须用 gpt-5，API proxy 的 gpt-4o 不支持 max_output_tokens

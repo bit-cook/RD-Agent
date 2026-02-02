@@ -17,7 +17,10 @@ fi
 
 # 映射环境变量（rdagent 用 OPENAI_API_KEY，openhands 用 LLM_API_KEY）
 export LLM_API_KEY="${OPENAI_API_KEY}"
-export LLM_MODEL="${CHAT_MODEL:-gpt-4o}"
+# LLM_MODEL 优先从 config.yaml 传入，否则用 CHAT_MODEL，默认 gpt-5
+export LLM_MODEL="${LLM_MODEL:-${CHAT_MODEL:-gpt-5}}"
+export LLM_BASE_URL="${OPENAI_API_BASE}"
+echo "LLM Model: $LLM_MODEL"
 
 # 激活 openhands 环境
 source ~/cwy/miniconda3/bin/activate openhands
