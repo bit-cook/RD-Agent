@@ -2,8 +2,9 @@
 AutoRL-Bench Benchmark: 评测逻辑
 
 使用 OpenCompass 评测静态任务（如 gsm8k, math）
-支持本地运行和 Docker 运行两种模式。
+交互式任务（如 alfworld）使用各自的 eval 模块
 """
+import importlib
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -85,10 +86,16 @@ def run_benchmark(
             gpu_count=gpu_count,
             test_range=test_range,
         )
-    elif task_config.eval_type == "repo_script":
-        return _run_repo_script_eval(workspace_path, model_path, task_config)
     else:
-        raise ValueError(f"Unknown eval_type: {task_config.eval_type}")
+        # 动态导入各 benchmark 的 eval 模块
+        eval_module = importlib.import_module(
+            f"rdagent.scenarios.rl.autorl_bench.tasks.{benchmark_name}.eval"
+        )
+        return eval_module.run_eval(
+            workspace_path=workspace_path,
+            model_path=model_path,
+            task_config=task_config,
+        )
 
 
 def _run_opencompass_eval(
@@ -188,10 +195,3 @@ def _run_opencompass_eval(
     return result
 
 
-def _run_repo_script_eval(workspace_path: str, model_path: str, task_config) -> Dict[str, Any]:
-    """运行 repo 内置评测脚本（预留接口，用于交互式任务）"""
-    return {
-        "eval_type": "repo_script",
-        "score": 0.0,
-        "error": "Interactive evaluation not implemented yet",
-    }

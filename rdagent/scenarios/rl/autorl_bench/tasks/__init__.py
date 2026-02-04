@@ -63,6 +63,17 @@ TASKS: dict[str, TaskConfig] = {
         eval_type="opencompass",
         eval_config={"dataset": "opencompass.configs.datasets.math.math_0shot_gen_393424"},
     ),
+    "alfworld": TaskConfig(
+        id="alfworld",
+        type="interactive",
+        source="https://github.com/alfworld/alfworld.git",
+        eval_type="alfworld",
+        eval_config={
+            "max_steps": 50,
+            "env_num": 140,
+            "eval_dataset": "eval_in_distribution",
+        },
+    ),
 }
 
 

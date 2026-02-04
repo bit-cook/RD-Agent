@@ -40,16 +40,31 @@ def download_data(task: str, data_dir: Optional[str] = None) -> str:
         return str(target_dir)
     
     logger.info(f"Downloading data: {task}...")
-    target_dir.mkdir(parents=True, exist_ok=True)
     
     if config.type == "static":
+        target_dir.mkdir(parents=True, exist_ok=True)
         _download_static_dataset(config, target_dir)
+    elif config.type == "interactive":
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        _clone_interactive_repo(config, target_dir)
     
     if config.remove_test:
         _remove_test_splits(str(target_dir))
     
     logger.info(f"Data downloaded to {target_dir}")
     return str(target_dir)
+
+
+def _clone_interactive_repo(config, target_dir: Path) -> None:
+    """克隆交互式 benchmark 的 git repo"""
+    import subprocess
+    
+    logger.info(f"Cloning {config.source} to {target_dir}...")
+    subprocess.run(
+        ["git", "clone", "--depth", "1", config.source, str(target_dir)],
+        check=True,
+    )
+    logger.info(f"Cloned {config.source}")
 
 
 def _download_static_dataset(config, target_dir: Path) -> None:
