@@ -13,6 +13,7 @@ import concurrent.futures
 import copy
 import os
 import pickle
+import multiprocessing.queues
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -508,8 +509,11 @@ class LoopBase:
     def __getstate__(self) -> dict[str, Any]:
         res = {}
         for k, v in self.__dict__.items():
-            if k not in ["queue", "semaphores", "_pbar"]:
-                res[k] = v
+            if k in ["queue", "semaphores", "_pbar"]:
+                continue
+            if isinstance(v, multiprocessing.queues.Queue): # interaction queues are not picklable
+                continue
+            res[k] = v
         return res
 
     def __setstate__(self, state: dict[str, Any]) -> None:

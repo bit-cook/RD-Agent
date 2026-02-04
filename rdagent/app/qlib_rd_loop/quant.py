@@ -124,6 +124,7 @@ def main(
     loop_n: int | None = None,
     all_duration: str | None = None,
     checkout: bool = True,
+    **kwargs
 ):
     """
     Auto R&D Evolving loop for fintech factors.
@@ -135,7 +136,8 @@ def main(
         quant_loop = QuantRDLoop(QUANT_PROP_SETTING)
     else:
         quant_loop = QuantRDLoop.load(path, checkout=checkout)
-
+    if "user_interaction_queues" in kwargs and kwargs["user_interaction_queues"] is not None:
+        quant_loop._set_interactor(*kwargs["user_interaction_queues"])
     asyncio.run(quant_loop.run(step_n=step_n, loop_n=loop_n, all_duration=all_duration))
 
 

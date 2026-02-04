@@ -47,11 +47,11 @@ class RDLoop(LoopBase, metaclass=LoopMeta):
         self.user_request_q = user_request_q
         self.user_response_q = user_response_q
 
-    def _interact(self, hypo: Hypothesis) -> Hypothesis:
+    def _interact_hypo(self, hypo: Hypothesis) -> Hypothesis:
         if not (hasattr(self, "user_request_q") and hasattr(self, "user_response_q")):
             return hypo
 
-        logger.info("Waiting for user interaction...")
+        logger.info("Waiting for user interaction on hypothesis...")
         try:
             self.user_request_q.put(hypo.__dict__)
             res_dict = self.user_response_q.get()
@@ -59,14 +59,29 @@ class RDLoop(LoopBase, metaclass=LoopMeta):
         except (EOFError, OSError):
             logger.info("User interaction failed, using original hypothesis.")
             return hypo
-        logger.info("Received user interaction.")
+        logger.info("Received user interaction on hypothesis.")
         return modified_hypo
+
+    def _interact_feedback(self, feedback: HypothesisFeedback) -> HypothesisFeedback:
+        if not (hasattr(self, "user_request_q") and hasattr(self, "user_response_q")):
+            return feedback
+
+        logger.info("Waiting for user interaction on feedback...")
+        try:
+            self.user_request_q.put(feedback.__dict__)
+            res_dict = self.user_response_q.get()
+            modified_feedback = HypothesisFeedback(**res_dict)
+        except (EOFError, OSError):
+            logger.info("User interaction failed, using original feedback.")
+            return feedback
+        logger.info("Received user interaction on feedback.")
+        return modified_feedback
 
     def _propose(self):
         hypothesis = self.hypothesis_gen.gen(self.trace)
                         
         # user can change the hypothesis here
-        hypothesis = self._interact(hypothesis)
+        hypothesis = self._interact_hypo(hypothesis)
 
         logger.log_object(hypothesis, tag="hypothesis generation")
         return hypothesis
@@ -104,11 +119,14 @@ class RDLoop(LoopBase, metaclass=LoopMeta):
                 new_hypothesis="",
                 reason="",
                 decision=False,
+                exception=str(e),
             )
+            feedback = self._interact_feedback(feedback)
             logger.log_object(feedback, tag="feedback")
             self.trace.hist.append((prev_out["direct_exp_gen"]["exp_gen"], feedback))
         else:
             feedback = self.summarizer.generate_feedback(prev_out["running"], self.trace)
+            feedback = self._interact_feedback(feedback)
             logger.log_object(feedback, tag="feedback")
             self.trace.hist.append((prev_out["running"], feedback))
 

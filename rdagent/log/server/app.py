@@ -399,22 +399,10 @@ def submit_user_interaction_response():
     trace_id = str(log_folder_path / trace_id)
     task = _get_or_create_task(trace_id)
 
-    # Best-effort: also surface any outstanding requests before accepting a response.
-    _drain_user_requests_into_messages(task)
-
     try:
         task.user_response_q.put(payload, block=False)
     except Exception as e:
         return jsonify({"error": f"Failed to enqueue user response: {e}"}), 500
-
-    # Optional: mirror the response into the trace stream for debugging.
-    task.messages.append(
-        {
-            "tag": "user_interaction.response",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "content": payload,
-        }
-    )
 
     return jsonify({"status": "success"}), 200
 
