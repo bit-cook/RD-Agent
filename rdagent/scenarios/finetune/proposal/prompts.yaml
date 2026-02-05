@@ -170,36 +170,37 @@ unified_hypothesis_gen:
     - Max `seq_len` each method can support at `batch_size=1`
     - Model's `max_position_embeddings` limit
 
-    **Method Selection based on seq_len needs and dataset size:**
-    1. Check which methods support your required seq_len
-    2. **Consider dataset size** (critical for avoiding overfitting):
-       - **Small dataset (<5K samples)**: Prefer `lora` or `qlora` to prevent overfitting
-       - **Medium dataset (5K-10K samples)**: Balance quality vs overfitting risk - consider `lora` or `full_gc`
-       - **Large dataset (>10K samples)**: Among viable methods, prefer `full` > `full_gc` > `lora` > `qlora` for quality
-    3. `full` is NOT always optimal - choose based on BOTH seq_len constraints AND dataset size
-
-    **Set cutoff_len:** `cutoff_len ≤ min(max_seq_len from table, max_position_embeddings)`
-
-    **Batch size trade-offs:**
-    - Smaller seq_len → can increase batch_size
-    - Larger seq_len → must decrease batch_size (possibly to 1)
-    - Use `gradient_accumulation_steps` to achieve effective batch size of 16-64
-
-    **Example Decision Flows:**
+    **Method Selection Framework (You Decide):**
     
-    **Scenario A: Large dataset (15K samples)**
-    Given 4×48GB GPU, 7B model, need 16K seq_len for rich CoT:
-    1. Check table: `full`=18K ✓, `full_gc`=52K ✓, `lora`=89K ✓
-    2. Large dataset → all methods viable, choose `full` (best quality, low overfitting risk)
-    3. Set `cutoff_len`=16384 (≤ 18K and ≤ max_position_embeddings)
-    4. batch_size=1, gradient_accumulation=16 → effective batch=64
+    Consider these factors when choosing a fine-tuning method. There are NO fixed rules - learn from history and adapt:
     
-    **Scenario B: Small dataset (3K samples)**
-    Given same hardware and seq_len requirement:
-    1. Check table: `full`=18K ✓, `full_gc`=52K ✓, `lora`=89K ✓
-    2. Small dataset → choose `lora` despite `full` being viable (avoid overfitting)
-    3. Set `cutoff_len`=16384, use LoRA rank=64-128
-    4. batch_size=1, gradient_accumulation=8 → effective batch=32 (smaller for small dataset)
+    1. **Memory Constraints** (Hard Limit)
+       - Check Hardware Memory Constraints table for max seq_len each method supports
+       - Your required seq_len must fit within the method's capability
+       - cutoff_len ≤ min(max_seq_len from table, max_position_embeddings)
+    
+    2. **Dataset Size vs Overfitting Risk** (Trade-off to Explore)
+       - Smaller datasets → higher risk of overfitting with full-parameter training
+       - Consider: Can you augment data? Use regularization? Early stopping?
+       - PEFT methods (LoRA/QLoRA) are one option, but not the only solution
+    
+    3. **Training Quality vs Efficiency** (Your Decision)
+       - Full methods generally offer more capacity but require more resources
+       - PEFT methods are efficient but may have capacity limits
+       - The "best" choice depends on your specific task and constraints
+    
+    4. **Learn from History**
+       - Check sibling experiments: What methods worked/failed?
+       - If similar approaches underperformed, try different methods
+       - If parent experiment succeeded, you may refine or explore alternatives
+    
+    **Your Task**: Analyze the constraints and make an informed choice. Document your reasoning in the hypothesis.
+
+    **Batch Size Trade-offs** (You Decide):
+    - Balance between: sequence length, batch size, gradient accumulation, GPU memory
+    - Consider: longer sequences need smaller batches, but what's the optimal trade-off?
+    - Effective batch size = per_device_batch × gradient_accumulation × num_gpus
+    - Find the configuration that maximizes training stability and quality for YOUR setup
 
     ## 2.2 Available Resources
 

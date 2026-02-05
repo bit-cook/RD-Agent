@@ -391,15 +391,14 @@ finetune_coder:
     ## Processed Data Statistics (from debug mode)
     {{ data_stats }}
 
-    **Configuration Guidelines based on memory estimates:**
-    - `per_device_train_batch_size`: Use the recommended value from Scenario's Memory Estimates table
-      - For long CoT training (>8K tokens), prefer batch_size=1
-      - **IMPORTANT**: Smaller batch = can fit longer sequences = better reasoning quality
-    - `gradient_accumulation_steps`: Adjust to achieve effective batch of 16-64 (batch × accum × num_gpus)
-    - `cutoff_len`: Must accommodate your CoT length target
-      - Check data p99 and ensure cutoff_len > p99
-      - For reasoning tasks, aim for cutoff_len >= 8192
-    - `num_train_epochs` / `max_steps`: **If the task description specifies a specific value, use that value.** Otherwise, for small datasets (<1000), use 3-5 epochs; for large datasets (>10000), use 1-2 epochs.
+    **Your Task**: Implement the training configuration specified in the task description.
+    
+    - Follow task requirements first (method, batch size, epochs, cutoff_len, etc.)
+    - Apply technical constraints only when task doesn't specify:
+      - `cutoff_len`: ≤ min(max_position_embeddings, memory limit, data p99)
+      - `per_device_train_batch_size`: Choose based on Memory Estimates table
+      - `gradient_accumulation_steps`: Adjust for stable training (effective_batch = batch × accum × gpus)
+    - Validation setup: `val_size`, `eval_strategy` == `save_strategy`, `load_best_model_at_end: true`
     {% endif %}
 
     {% if latest_code %}
